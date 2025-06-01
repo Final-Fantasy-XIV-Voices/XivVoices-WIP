@@ -13,7 +13,10 @@ public sealed class Plugin : IDalamudPlugin
     IClientState clientState,
     ICommandManager commandManager,
     IFramework framework,
-    IPluginLog pluginLog
+    IPluginLog pluginLog,
+    IToastGui toastGui,
+    IAddonLifecycle addonLifecycle,
+    IObjectTable objectTable
   )
   {
     _host = new HostBuilder()
@@ -26,6 +29,14 @@ public sealed class Plugin : IDalamudPlugin
       .ConfigureServices(collection =>
       {
         collection.AddSingleton(pluginInterface);
+        collection.AddSingleton(chatGui);
+        collection.AddSingleton(clientState);
+        collection.AddSingleton(commandManager);
+        collection.AddSingleton(framework);
+        collection.AddSingleton(pluginLog);
+        collection.AddSingleton(toastGui);
+        collection.AddSingleton(addonLifecycle);
+        collection.AddSingleton(objectTable);
 
         collection.AddSingleton<WindowService>();
         collection.AddSingleton<CommandService>();
@@ -33,12 +44,22 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<SetupWindow>();
 
         collection.AddSingleton<Logger>();
+        collection.AddSingleton<InteropService>();
+        collection.AddSingleton<ReportService>();
+        collection.AddSingleton<SpeechService>();
+        collection.AddSingleton<DataService>();
+        collection.AddSingleton<DataMapper>();
+        collection.AddSingleton<AddonService>();
 
         collection.AddSingleton(InitializeConfiguration);
         collection.AddSingleton(new WindowSystem("XivVoices"));
 
-        collection.AddHostedService<WindowService>();
-        collection.AddHostedService<CommandService>();
+        collection.AddHostedService(sp => sp.GetRequiredService<WindowService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<CommandService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<ReportService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<SpeechService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<DataService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<AddonService>());
       }).Build();
 
     _host.StartAsync();

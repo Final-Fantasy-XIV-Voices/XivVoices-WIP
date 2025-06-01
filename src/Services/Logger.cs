@@ -1,5 +1,7 @@
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Dalamud.Game.Gui.Toast;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
@@ -63,5 +65,37 @@ public class Logger
   {
     if (!Configuration.Debug) return;
     PluginLog.Debug($"{FormatCallsite(callerPath, callerName, lineNumber)} {text}");
+  }
+
+  public void Debug<T>(T obj, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1)
+  {
+    if (obj == null)
+    {
+      Debug((string)"null", callerPath, callerName, lineNumber);
+      return;
+    }
+
+    Type type = typeof(T);
+    StringBuilder sb = new StringBuilder();
+    sb.AppendLine($"Type: {type.Name}");
+
+    var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+    foreach (var prop in properties)
+    {
+      object value = prop.GetValue(obj);
+      sb.AppendLine($"  {prop.Name}: {value}");
+    }
+
+    var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+    foreach (var field in fields)
+    {
+      object value = field.GetValue(obj);
+      sb.AppendLine($"  {field.Name}: {value}");
+    }
+
+    if (properties.Length == 0 && fields.Length == 0)
+      sb.AppendLine("  No public properties or fields found.");
+
+    Debug(sb.ToString(), callerPath, callerName, lineNumber);
   }
 }
