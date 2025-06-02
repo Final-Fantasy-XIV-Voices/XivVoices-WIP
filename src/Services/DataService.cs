@@ -10,6 +10,7 @@ namespace XivVoices.Services;
 public class DataService : IHostedService
 {
   private readonly Logger Logger;
+  private readonly Configuration Configuration;
   private readonly ReportService ReportService;
   private readonly SpeechService SpeechService;
   private readonly InteropService InteropService;
@@ -20,12 +21,10 @@ public class DataService : IHostedService
   private Manifest Manifest;
   private bool BlockAddonTalk = false;
 
-  private string DataDirectory = "/stuff/code/XivVoices-WIP/_data/voices"; // TODO: un-hardcode this
-  private string ManifestJsonPath = "/stuff/code/XivVoices-WIP/_data/manifest.json"; // TODO: un-hardcode this
-
-  public DataService(Logger logger, ReportService reportService, SpeechService speechService, InteropService interopService, DataMapper dataMapper, SoundFilter soundFilter, IClientState clientState)
+  public DataService(Logger logger, Configuration configuration, ReportService reportService, SpeechService speechService, InteropService interopService, DataMapper dataMapper, SoundFilter soundFilter, IClientState clientState)
   {
     Logger = logger;
+    Configuration = configuration;
     ReportService = reportService;
     SpeechService = speechService;
     InteropService = interopService;
@@ -71,7 +70,7 @@ public class DataService : IHostedService
   // TODO: This should be updated from the server on start-up, if the server is available.
   private Manifest LoadManifest()
   {
-    string jsonContent = File.ReadAllText(ManifestJsonPath);
+    string jsonContent = File.ReadAllText(Configuration.ManifestJsonPath);
     var json = JsonSerializer.Deserialize<ManifestJson>(jsonContent);
 
     Manifest manifest = new Manifest
@@ -185,7 +184,7 @@ public class DataService : IHostedService
       }
 
       Logger.Debug($"voice::{voice} speaker::{speaker} sentence::{sentence}");
-      string voiceline = Path.Combine(DataDirectory, Sha256(voice, speaker, sentence) + ".ogg");
+      string voiceline = Path.Combine(Configuration.DataDirectory, Sha256(voice, speaker, sentence) + ".ogg");
       Logger.Debug($"voiceline::{voiceline}");
 
       return File.Exists(voiceline) ? voiceline : null;

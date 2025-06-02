@@ -15,6 +15,9 @@ public class Configuration : IPluginConfiguration
   public bool IsSetupComplete = false;
   public bool ReplaceVoicedARRCutscenes = true;
 
+  public string DataDirectory = "/stuff/code/XivVoices-WIP/_data/voices"; // TODO: un-hardcode this
+  public string ManifestJsonPath = "/stuff/code/XivVoices-WIP/_data/manifest.json"; // TODO: un-hardcode this
+
   [NonSerialized]
   private Logger? Logger;
   [NonSerialized]
@@ -27,6 +30,7 @@ public class Configuration : IPluginConfiguration
 
     Logger.Configuration = this;
     ConfigurationMigrator.Migrate(this, Logger!);
+    Save(); // TODO: temporary for now, just so the config gets created.
   }
 
   public void Save() => PluginInterface!.SavePluginConfig(this);
