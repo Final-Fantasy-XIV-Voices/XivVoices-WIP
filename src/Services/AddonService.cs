@@ -77,7 +77,7 @@ public class AddonService : IHostedService
     {
       case XivChatType.Say:
       case XivChatType.TellIncoming:
-      case XivChatType.TellOutgoing:
+      // case XivChatType.TellOutgoing:
       case XivChatType.Shout:
       case XivChatType.Yell:
       case XivChatType.Party:
@@ -100,7 +100,7 @@ public class AddonService : IHostedService
       case XivChatType.Ls6:
       case XivChatType.Ls7:
       case XivChatType.Ls8:
-        DataService.ProcessMessage(speaker, sentence.ToString(), true);
+        DataService.ProcessMessage(speaker, sentence.ToString(), MessageSource.Chat);
         break;
     }
   }
@@ -127,6 +127,6 @@ public class AddonService : IHostedService
 
     Logger.Debug($"speaker::{speaker} sentence::{sentence}");
 
-    DataService.ProcessMessage(speaker, sentence);
+    DataService.ProcessMessage(speaker, sentence, MessageSource.AddonTalk);
   }
 }

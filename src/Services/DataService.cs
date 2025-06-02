@@ -15,16 +15,15 @@ public class DataService : IHostedService
   private readonly InteropService InteropService;
   private readonly DataMapper DataMapper;
   private readonly SoundFilter SoundFilter;
+  private readonly IClientState ClientState;
 
   private Manifest Manifest;
-  private bool BlockXIVVAudio = false; // If we should block Xivv audio because in-game voices are playing
-  private List<string> CurrentDialoguePaths = new(); // In-game voicelines that are currently queued to play.
-  private List<bool> CurrentDialoguePathsCompleted = new(); // IDK??
+  private bool BlockAddonTalk = false;
 
-  private string DataDirectory = "/stuff/code/XivVoices-WIP/_data"; // TODO: un-hardcode this
+  private string DataDirectory = "/stuff/code/XivVoices-WIP/_data/voices"; // TODO: un-hardcode this
   private string ManifestJsonPath = "/stuff/code/XivVoices-WIP/_data/manifest.json"; // TODO: un-hardcode this
 
-  public DataService(Logger logger, ReportService reportService, SpeechService speechService, InteropService interopService, DataMapper dataMapper, SoundFilter soundFilter)
+  public DataService(Logger logger, ReportService reportService, SpeechService speechService, InteropService interopService, DataMapper dataMapper, SoundFilter soundFilter, IClientState clientState)
   {
     Logger = logger;
     ReportService = reportService;
@@ -32,6 +31,7 @@ public class DataService : IHostedService
     InteropService = interopService;
     DataMapper = dataMapper;
     SoundFilter = soundFilter;
+    ClientState = clientState;
   }
 
   public Task StartAsync(CancellationToken cancellationToken)
@@ -62,9 +62,9 @@ public class DataService : IHostedService
 
   private void SoundFilter_OnCutSceneAudioDetected(object sender, InterceptedSound sound)
   {
-    // TODO: old plogon checks if we are logged in.
-    Logger.Debug($"new line came in, yo. shouldblockxivv: {sound.BlockXIVVAudio} path:{sound.SoundPath}");
-    // TODO: impl this. it does correctly report if xivv should block it's own audio or not!! works correctly with
+    if (!ClientState.IsLoggedIn || !InteropService.IsInCutscene()) return;
+    Logger.Debug($"SoundFilter: {sound.BlockAddonTalk} {sound.SoundPath}");
+    BlockAddonTalk = sound.BlockAddonTalk;
   }
 
   // This is stored locally, together with the voices.
@@ -94,8 +94,25 @@ public class DataService : IHostedService
   }
 
   // Entrypoint for all messages, including Chat.
-  public async Task ProcessMessage(string speaker, string sentence, bool isChatMessage = false)
+  public async Task ProcessMessage(string speaker, string sentence, MessageSource source)
   {
+    // TODO: BATTLETALK: see if i can also prevent xivv lines playing if a battletalk line is voiced!!
+    // so that'd probably check IsInCombat or whatever instead of cutscene. and shouldnt have to worry
+    // about clashing with addontalk as there is no way we have both battletalk and talk at once.
+
+    if (source == MessageSource.AddonTalk && InteropService.IsInCutscene())
+    {
+      // SoundFilter is a lil slower than AddonTalk update so we wait a bit.
+      // This is NOT that great but it works. 100 is an arbitrary number that seems to work for now.
+      await Task.Delay(100);
+      if (BlockAddonTalk)
+      {
+        Logger.Debug("AddonTalk message blocked by SoundFilter");
+        BlockAddonTalk = false;
+        return;
+      }
+    }
+
     // Ignored system messages and other such types without a speaker.
     if (String.IsNullOrEmpty(speaker)) return;
 
@@ -103,7 +120,7 @@ public class DataService : IHostedService
     if (Manifest.IgnoredSpeakers.Contains(speaker)) return;
 
     // Clean speaker and sentence only if this is a NPC message.
-    if (!isChatMessage)
+    if (source != MessageSource.Chat)
     {
       (speaker, sentence) = await DataMapper.CleanMessage(speaker, sentence);
     }
@@ -115,11 +132,11 @@ public class DataService : IHostedService
     NpcData? npcData = await InteropService.GetNpcDataFromGameObject(gameObject);
 
     // If no npcData was found from a GameObject, try looking up cached npcData, do not do this for chat messages.
-    if (npcData == null && !isChatMessage && Manifest.NpcData.TryGetValue(speaker, out var _npcData)) npcData = _npcData;
+    if (npcData == null && source != MessageSource.Chat && Manifest.NpcData.TryGetValue(speaker, out var _npcData)) npcData = _npcData;
 
     Logger.Debug(npcData);
 
-    if (isChatMessage)
+    if (source == MessageSource.Chat)
     {
       // TODO: store npcData if we found it once for a certain name? So gender would work as long as you've seen that player once.
       // current XIVV seems to do that with XIV_Voices/playerData.json
@@ -137,11 +154,10 @@ public class DataService : IHostedService
     {
       // Line is missing, report it, and play local tts.
       SpeechService.SpeakTTS(speaker, sentence, npcData, gameObject);
-      if (!isChatMessage) ReportService.Report(speaker, sentence, npcData, gameObject);
+      if (source != MessageSource.Chat) ReportService.Report(speaker, sentence, npcData, gameObject);
     }
   }
 
-  // TODO: "NpcWithVariedLooks", these are for example: Chocobokeep.
   // TODO: retainers
 
   // Try to get a voiceline filepath given a cleaned speaker and sentence and optionally NpcData.

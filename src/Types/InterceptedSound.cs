@@ -4,5 +4,5 @@ namespace XivVoices.Types;
 
 public class InterceptedSound : EventArgs {
   public string SoundPath { get; set; }
-  public bool BlockXIVVAudio { get; set; }
+  public bool BlockAddonTalk { get; set; }
 }

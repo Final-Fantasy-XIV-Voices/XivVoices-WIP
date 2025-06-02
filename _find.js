@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const SEARCHTERM = "“”";
+const SEARCHTERM = "ñ";
 
-const OLD_VOICE_DATA_PATH = "/stuff/symlink/XIV_Voices/Data"; // voice folder
+const OLD_VOICE_DATA_PATH = "/stuff/symlink/XIV_Voices-orig/Data"; // voice folder
 
 let count = 0;
 const voices = fs.readdirSync(OLD_VOICE_DATA_PATH);
@@ -15,13 +15,21 @@ voices.forEach((voice) => {
     );
     files.forEach((file) => {
       if (file.endsWith(".json")) {
-        const json = JSON.parse(
-          fs.readFileSync(path.join(OLD_VOICE_DATA_PATH, voice, speaker, file)),
-        );
+        const jsonPath = path.join(OLD_VOICE_DATA_PATH, voice, speaker, file);
+        const json = JSON.parse(fs.readFileSync(jsonPath));
 
-        if (json.sentence.includes(SEARCHTERM)) {
+        if (json.speaker.toLowerCase().includes(SEARCHTERM.toLowerCase())) {
           count++;
-          console.log(json);
+
+          console.log(
+            path.join(
+              OLD_VOICE_DATA_PATH,
+              voice,
+              speaker,
+              file.replace("json", "ogg"),
+            ),
+            json,
+          );
         }
       }
     });

@@ -79,6 +79,8 @@ public class DataMapper
       }
 
       // "Send help" was the original comment for this, idk.
+      // Seems to un-escaping unicode. I don't think any of the
+      // game npc dialogue have these, so it might be for Chat/LocalTTS?
       sentence = sentence
         .Replace("\\u00e1", "á")
         .Replace("\\u00e9", "é")

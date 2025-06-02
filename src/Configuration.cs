@@ -6,7 +6,12 @@ namespace XivVoices;
 public class Configuration : IPluginConfiguration
 {
   public int Version { get; set; } = 0;
-  public bool Debug { get; set; } = false;
+
+  // Opt-out if you really hate the "spam" or whatever.
+  // It's easier if users have this enabled by default and can send logs after something goes wrong,
+  // instead of having to replicate it after toggling this option.
+  public bool Debug { get; set; } = true;
+
   public bool IsSetupComplete = false;
   public bool ReplaceVoicedARRCutscenes = true;
 

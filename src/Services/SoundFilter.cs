@@ -196,12 +196,13 @@ public class SoundFilter : IHostedService
     {
       if ((path.Contains("vo_man") || (path.Contains("cut/ffxiv/") && path.Contains("vo_voiceman"))) && Configuration.ReplaceVoicedARRCutscenes)
       {
-        OnCutsceneAudioDetected?.Invoke(this, new InterceptedSound() { SoundPath = path, BlockXIVVAudio = false });
+        OnCutsceneAudioDetected?.Invoke(this, new InterceptedSound() { SoundPath = path, BlockAddonTalk = false });
+        Logger.Debug("Blocking voiced ARR line in favor of XIVV");
         return true;
       }
       else
       {
-        OnCutsceneAudioDetected?.Invoke(this, new InterceptedSound() { SoundPath = path, BlockXIVVAudio = true });
+        OnCutsceneAudioDetected?.Invoke(this, new InterceptedSound() { SoundPath = path, BlockAddonTalk = true });
       }
     }
 

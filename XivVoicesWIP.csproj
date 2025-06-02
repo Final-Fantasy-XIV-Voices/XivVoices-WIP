@@ -9,10 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="src/nosound.scd"/>
+    <EmbeddedResource Include="src/nosound.scd" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Concentus.OggFile" Version="1.0.6" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 </Project>

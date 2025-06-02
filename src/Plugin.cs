@@ -17,7 +17,8 @@ public sealed class Plugin : IDalamudPlugin
     IToastGui toastGui,
     IAddonLifecycle addonLifecycle,
     IObjectTable objectTable,
-    IGameInteropProvider interopProvider
+    IGameInteropProvider interopProvider,
+    ICondition condition
   )
   {
     _host = new HostBuilder()
@@ -39,6 +40,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(addonLifecycle);
         collection.AddSingleton(objectTable);
         collection.AddSingleton(interopProvider);
+        collection.AddSingleton(condition);
 
         collection.AddSingleton<WindowService>();
         collection.AddSingleton<CommandService>();

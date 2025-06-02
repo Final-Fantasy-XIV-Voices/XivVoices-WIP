@@ -27,6 +27,8 @@ public class ReportService : IHostedService
 
   public void Report(string speaker, string sentence, NpcData? npcData, IGameObject? gameObject)
   {
+    // TODO: report current zone and active quests to easier idenfity ??? npcs, maybe coordinates?
+    // dont allow reports if manifest and local files are not up-to-date? idk about that, server would de-dupe anyway
     Logger.Chat($"Reporting: {speaker}::{sentence}");
   }
 }

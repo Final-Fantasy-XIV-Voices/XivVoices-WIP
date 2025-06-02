@@ -1,3 +1,5 @@
+using Dalamud.Game.ClientState.Conditions;
+
 namespace XivVoices.Services;
 
 public class InteropService
@@ -8,8 +10,9 @@ public class InteropService
   private readonly IObjectTable ObjectTable;
   private readonly DataMapper DataMapper;
   private readonly IFramework Framework;
+  private readonly ICondition Condition;
 
-  public InteropService(Logger logger, Configuration configuration, IClientState clientState, IObjectTable objectTable, DataMapper dataMapper, IFramework framework)
+  public InteropService(Logger logger, Configuration configuration, IClientState clientState, IObjectTable objectTable, DataMapper dataMapper, IFramework framework, ICondition condition)
   {
     Logger = logger;
     Configuration = configuration;
@@ -17,6 +20,7 @@ public class InteropService
     ObjectTable = objectTable;
     DataMapper = dataMapper;
     Framework = framework;
+    Condition = condition;
   }
 
   public Task<IGameObject?> GetGameObjectByName(string name)
@@ -72,5 +76,10 @@ public class InteropService
 
       return npcData;
     });
+  }
+
+  public bool IsInCutscene()
+  {
+    return Condition.Any(ConditionFlag.OccupiedInCutSceneEvent, ConditionFlag.WatchingCutscene, ConditionFlag.WatchingCutscene78);
   }
 }
