@@ -102,6 +102,7 @@ voices.forEach((voice) => {
               {
                 Speaker: ReplaceSpeaker(json.speaker),
                 Sentence: ReplaceSentence(json.sentence),
+                Voice: voice,
               },
               null,
               2,

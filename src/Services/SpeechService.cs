@@ -3,22 +3,30 @@ using NAudio.Wave.SampleProviders;
 using Concentus.Oggfile;
 using Concentus.Structs;
 using System.IO;
+using FFXIVClientStructs.FFXIV.Component.GUI;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace XivVoices.Services;
+
+// TODO: move stuff from here and addonservice that use gamegui into like, idk. GameGuiService. idfk.
 
 public class SpeechService : IHostedService
 {
   private readonly Logger Logger;
   private readonly Configuration Configuration;
+  private readonly IFramework Framework;
+  private readonly IGameGui GameGui;
 
   private readonly object _playbackLock = new();
   private IWavePlayer? _currentAudioOutput;
   private WaveStream? _currentWaveStream;
 
-  public SpeechService(Logger logger, Configuration configuration)
+  public SpeechService(Logger logger, Configuration configuration, IFramework framework, IGameGui gameGui)
   {
     Logger = logger;
     Configuration = configuration;
+    Framework = framework;
+    GameGui = gameGui;
   }
 
   public Task StartAsync(CancellationToken cancellationToken)
@@ -35,16 +43,12 @@ public class SpeechService : IHostedService
     return Task.CompletedTask;
   }
 
+  // TODO: we should allow multiple "sources" to speak at the same time, e.g. chat bubbles and dialogue, but not dialogue twice.
   public void Speak(string voiceline, IGameObject? gameObject)
   {
     Logger.Debug($"Speak: {voiceline}");
 
-    _currentAudioOutput?.Stop();
-    _currentAudioOutput?.Dispose();
-    _currentAudioOutput = null;
-
-    _currentWaveStream?.Dispose();
-    _currentWaveStream = null;
+    StopPlaying();
 
     try
     {
@@ -57,6 +61,13 @@ public class SpeechService : IHostedService
       };
 
       _currentAudioOutput = new WasapiOut(); // TODO: Support other engines
+
+      _currentAudioOutput.PlaybackStopped += (sender, args) =>
+      {
+        Logger.Debug("Audio playback completed.");
+        AutoAdvance(); // TODO: only if it was a addontalk message.
+      };
+
       _currentAudioOutput.Init(volumeProvider);
       _currentAudioOutput.Play();
     }
@@ -64,6 +75,44 @@ public class SpeechService : IHostedService
     {
       Logger.Error($"Failed to play voice line '{voiceline}': {ex.Message}");
     }
+  }
+
+  private unsafe void AutoAdvance()
+  {
+    Framework.RunOnFrameworkThread(() => {
+      AddonTalk* addonTalk = (AddonTalk*)GameGui.GetAddonByName("Talk");
+      if (addonTalk == null) return;
+      var evt = stackalloc AtkEvent[1]
+      {
+        new()
+        {
+          Listener = (AtkEventListener*)addonTalk,
+          Target = &AtkStage.Instance()->AtkEventTarget,
+          State = new()
+          {
+            StateFlags = (AtkEventStateFlags)132
+          }
+        }
+      };
+      var data = stackalloc AtkEventData[1];
+      for (var i =0 ; i < sizeof(AtkEventData); i++)
+      {
+        ((byte*)data)[i] = 0;
+      }
+      addonTalk->ReceiveEvent(AtkEventType.MouseDown, 0, evt, data);
+      addonTalk->ReceiveEvent(AtkEventType.MouseClick, 0, evt, data);
+      addonTalk->ReceiveEvent(AtkEventType.MouseUp, 0, evt, data);
+    });
+  }
+
+  public void StopPlaying()
+  {
+    _currentAudioOutput?.Stop();
+    _currentAudioOutput?.Dispose();
+    _currentAudioOutput = null;
+
+    _currentWaveStream?.Dispose();
+    _currentWaveStream = null;
   }
 
   public void SpeakTTS(string speaker, string sentence, NpcData? npcData, IGameObject? gameObject)

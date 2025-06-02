@@ -19,19 +19,28 @@ public class AddonService : IHostedService
   private readonly IAddonLifecycle AddonLifecycle;
   private readonly DataService DataService;
   private readonly IChatGui ChatGui;
+  private readonly IGameGui GameGui;
+  private readonly SpeechService SpeechService;
+  private readonly IFramework Framework;
 
-  public AddonService(Logger logger, IAddonLifecycle addonLifecycle, DataService dataService, IChatGui chatGui)
+  private bool AddonTalkLastVisible = false;
+
+  public AddonService(Logger logger, IAddonLifecycle addonLifecycle, DataService dataService, IChatGui chatGui, IGameGui gameGui, SpeechService speechService, IFramework framework)
   {
     Logger = logger;
     AddonLifecycle = addonLifecycle;
     DataService = dataService;
     ChatGui = chatGui;
+    GameGui = gameGui;
+    SpeechService = speechService;
+    Framework = framework;
   }
 
   public Task StartAsync(CancellationToken cancellationToken)
   {
     AddonLifecycle.RegisterListener(AddonEvent.PostRefresh, "Talk", OnTalkAddonPostRefresh);
     ChatGui.ChatMessage += OnChatMessage;
+    Framework.Update += OnFrameworkUpdate;
 
     Logger.Debug("AddonService started");
     return Task.CompletedTask;
@@ -41,9 +50,37 @@ public class AddonService : IHostedService
   {
     AddonLifecycle.UnregisterListener(OnTalkAddonPostRefresh);
     ChatGui.ChatMessage -= OnChatMessage;
+    Framework.Update -= OnFrameworkUpdate;
 
     Logger.Debug("AddonService stopped");
     return Task.CompletedTask;
+  }
+
+  private int UpdateCounter = 0;
+  private const int UpdateInterval = 5;
+  private unsafe void OnFrameworkUpdate(IFramework _)
+  {
+    UpdateCounter++;
+    if (UpdateCounter >= UpdateInterval)
+    {
+      UpdateCounter = 0;
+
+      // Stop playing AddonTalk voicelines if it was clicked away.
+      AddonTalk* addonTalk = (AddonTalk*)GameGui.GetAddonByName("Talk");
+      if (addonTalk != null)
+      {
+        bool visible = addonTalk->AtkUnitBase.IsVisible;
+        if (AddonTalkLastVisible != visible)
+        {
+          AddonTalkLastVisible = visible;
+          if (visible == false)
+          {
+            Logger.Debug("AddonTalk was clicked away.");
+            SpeechService.StopPlaying();
+          }
+        }
+      }
+    }
   }
 
   private void OnChatMessage(XivChatType type, int timestamp, ref SeString sender, ref SeString sentence, ref bool isHandled)
@@ -119,8 +156,6 @@ public class AddonService : IHostedService
   {
     var addon = (AddonTalk*)args.Addon;
     if (addon == null) return;
-
-    // TODO: if this line is voiced by the game, do not proceed here.
 
     var speaker = ReadTextNode(addon->AtkTextNode220);
     var sentence = ReadTextNode(addon->AtkTextNode228);

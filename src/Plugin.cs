@@ -10,6 +10,7 @@ public sealed class Plugin : IDalamudPlugin
   public Plugin(
     IDalamudPluginInterface pluginInterface,
     IChatGui chatGui,
+    IGameGui gameGui,
     IClientState clientState,
     ICommandManager commandManager,
     IFramework framework,
@@ -32,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
       {
         collection.AddSingleton(pluginInterface);
         collection.AddSingleton(chatGui);
+        collection.AddSingleton(gameGui);
         collection.AddSingleton(clientState);
         collection.AddSingleton(commandManager);
         collection.AddSingleton(framework);
