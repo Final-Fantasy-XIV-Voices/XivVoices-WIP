@@ -19,6 +19,7 @@ public class DataMapper
   // Sanitizes the speaker and sentence. This should preferably NEVER be changed,
   // as that would break a lot of voicelines generated before then.
   // If we do want to add something here, make SURE it will NOT affect existing lines.
+
   public async Task<(string speaker, string sentence)> CleanMessage(string _speaker, string _sentence)
   {
     string speaker = _speaker;
@@ -48,6 +49,9 @@ public class DataMapper
       // Remove leading "..." if present
       if (sentence.StartsWith("..."))
         sentence = sentence[3..];
+
+      // Remove text in and including angled brackets, e.g. <sigh> <sniffle>
+      sentence = Regex.Replace(sentence, "<[^<]*>", "");
 
       // Convert Roman Numerals
       sentence = ConvertRomanNumerals(sentence);
@@ -193,7 +197,8 @@ public class DataMapper
         }
       }
 
-      sentence = sentence.Trim();
+      // Reduce multiple whitespaces to one and Trim().
+      sentence = Regex.Replace(sentence, @"\s+", " ").Trim();
     }
 
     return (speaker, sentence);

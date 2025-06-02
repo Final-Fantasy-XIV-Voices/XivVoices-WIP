@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const SEARCHTERM = "what's with all the blood, you ask";
+const SEARCHTERM = "sister will be disappointed";
 
 const PATH = "/stuff/code/XivVoices-WIP/_data/voices";
 

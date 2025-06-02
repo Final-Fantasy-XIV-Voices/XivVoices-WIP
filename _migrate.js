@@ -139,9 +139,15 @@ function ReplaceSentence(sentence) {
 
   sentence = convertRomanNumerals(sentence);
 
-  return sentence.replace(/\bArc\b(?='s)?/g, (match) => {
+  sentence = sentence.replace(/\bArc\b(?='s)?/g, (match) => {
     return match === "Arc" ? "_NAME_" : "_NAME_'s";
   });
+
+  sentence = sentence.replace(/<[^<]*>/g, "");
+
+  sentence = sentence.replace(/\s+/g, " ").trim();
+
+  return sentence;
 }
 
 function romanTo(number) {
