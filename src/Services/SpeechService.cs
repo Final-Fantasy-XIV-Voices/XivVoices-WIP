@@ -27,11 +27,13 @@ public class SpeechService : IHostedService
 
   public void Speak(string voiceline, IGameObject? gameObject)
   {
-    Logger.Debug($"voiceline::{voiceline}");
+    // Logger.Toast($"Speak: {voiceline}");
+    Logger.Chat($"Speak: {voiceline}");
   }
 
   public void SpeakTTS(string speaker, string sentence, NpcData? npcData, IGameObject? gameObject)
   {
-    Logger.Debug($"speaker::{speaker} sentence::{sentence}");
+    // Logger.Toast($"SpeakTTS: {speaker}:{sentence}");
+    Logger.Chat($"SpeakTTS: {speaker}:{sentence}");
   }
 }

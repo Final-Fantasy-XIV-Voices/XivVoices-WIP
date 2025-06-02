@@ -7,65 +7,70 @@ public class InteropService
   private readonly IClientState ClientState;
   private readonly IObjectTable ObjectTable;
   private readonly DataMapper DataMapper;
+  private readonly IFramework Framework;
 
-  public InteropService(Logger logger, Configuration configuration, IClientState clientState, IObjectTable objectTable, DataMapper dataMapper)
+  public InteropService(Logger logger, Configuration configuration, IClientState clientState, IObjectTable objectTable, DataMapper dataMapper, IFramework framework)
   {
     Logger = logger;
     Configuration = configuration;
     ClientState = clientState;
     ObjectTable = objectTable;
     DataMapper = dataMapper;
+    Framework = framework;
   }
 
-  public bool TryGetGameObjectByName(string name, out IGameObject? gameObject)
+  public Task<IGameObject?> GetGameObjectByName(string name)
   {
-    gameObject = null;
-
-    foreach (IGameObject obj in ObjectTable)
-    {
-      if (obj as ICharacter == null || obj as ICharacter == ClientState.LocalPlayer || obj.Name.TextValue == "") continue;
-      if (obj.Name.TextValue == name)
+    return Framework.RunOnFrameworkThread(() => {
+      foreach (IGameObject gameObject in ObjectTable)
       {
-        gameObject = obj;
-        return true;
+        if (gameObject as ICharacter == null || gameObject as ICharacter == ClientState.LocalPlayer || gameObject.Name.TextValue == "") continue;
+        if (gameObject.Name.TextValue == name)
+        {
+          return gameObject;
+        }
       }
-    }
 
-    return false;
+      return null;
+    });
   }
 
-  public unsafe NpcData GetNpcDataFromGameObject(IGameObject gameObject)
+  public unsafe Task<NpcData?> GetNpcDataFromGameObject(IGameObject? gameObject)
   {
-    ICharacter character = gameObject as ICharacter;
-    string speaker = gameObject.Name.TextValue;
+    return Framework.RunOnFrameworkThread(() => {
+      if (gameObject == null) return null;
 
-    bool gender = Convert.ToBoolean(character.Customize[(int)CustomizeIndex.Gender]);
-    byte race = character.Customize[(int)CustomizeIndex.Race];
-    byte tribe = character.Customize[(int)CustomizeIndex.Tribe];
-    byte body = character.Customize[(int)CustomizeIndex.ModelType];
-    byte eyes = character.Customize[(int)CustomizeIndex.EyeShape];
+      ICharacter character = gameObject as ICharacter;
+      string speaker = gameObject.Name.TextValue;
 
-    NpcData npcData = new NpcData
-    {
-      Gender = DataMapper.GetGender(gender),
-      Race = DataMapper.GetRace(race),
-      Tribe = DataMapper.GetTribe(tribe),
-      Body = DataMapper.GetBody(body),
-      Eyes = DataMapper.GetEyes(eyes),
-      Type = DataMapper.GetBody(body) == "Elderly" ? "Old" : "Default"
-    };
+      bool gender = Convert.ToBoolean(character.Customize[(int)CustomizeIndex.Gender]);
+      byte race = character.Customize[(int)CustomizeIndex.Race];
+      byte tribe = character.Customize[(int)CustomizeIndex.Tribe];
+      byte body = character.Customize[(int)CustomizeIndex.ModelType];
+      byte eyes = character.Customize[(int)CustomizeIndex.EyeShape];
 
-    if (npcData.Body == "Beastman")
-    {
-      int skeletonId = ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)character.Address)->ModelContainer.ModelSkeletonId;
-      npcData.Race = DataMapper.GetSkeleton(skeletonId, ClientState.TerritoryType);
+      NpcData npcData = new NpcData
+      {
+        Gender = DataMapper.GetGender(gender),
+        Race = DataMapper.GetRace(race),
+        Tribe = DataMapper.GetTribe(tribe),
+        Body = DataMapper.GetBody(body),
+        Eyes = DataMapper.GetEyes(eyes),
+        Type = DataMapper.GetBody(body) == "Elderly" ? "Old" : "Default"
+      };
 
-      // I would like examples for why these workarounds are necessary,
-      // but as it stands this is copied from old XIVV
-      if (speaker.Contains("Moogle"))
-        npcData.Race = "Moogle";
-    }
+      if (npcData.Body == "Beastman")
+      {
+        int skeletonId = ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)character.Address)->ModelContainer.ModelSkeletonId;
+        npcData.Race = DataMapper.GetSkeleton(skeletonId, ClientState.TerritoryType);
 
-    return npcData;
+        // I would like examples for why these workarounds are necessary,
+        // but as it stands this is copied from old XIVV
+        if (speaker.Contains("Moogle"))
+          npcData.Race = "Moogle";
+      }
+
+      return npcData;
+    });
   }
 }

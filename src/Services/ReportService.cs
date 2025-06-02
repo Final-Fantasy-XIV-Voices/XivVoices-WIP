@@ -27,6 +27,6 @@ public class ReportService : IHostedService
 
   public void Report(string speaker, string sentence, NpcData? npcData, IGameObject? gameObject)
   {
-
+    Logger.Chat($"Reporting: {speaker}::{sentence}");
   }
 }

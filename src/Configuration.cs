@@ -8,6 +8,7 @@ public class Configuration : IPluginConfiguration
   public int Version { get; set; } = 0;
   public bool Debug { get; set; } = false;
   public bool IsSetupComplete = false;
+  public bool ReplaceVoicedARRCutscenes = true;
 
   [NonSerialized]
   private Logger? Logger;

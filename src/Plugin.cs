@@ -16,7 +16,8 @@ public sealed class Plugin : IDalamudPlugin
     IPluginLog pluginLog,
     IToastGui toastGui,
     IAddonLifecycle addonLifecycle,
-    IObjectTable objectTable
+    IObjectTable objectTable,
+    IGameInteropProvider interopProvider
   )
   {
     _host = new HostBuilder()
@@ -37,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(toastGui);
         collection.AddSingleton(addonLifecycle);
         collection.AddSingleton(objectTable);
+        collection.AddSingleton(interopProvider);
 
         collection.AddSingleton<WindowService>();
         collection.AddSingleton<CommandService>();
@@ -44,6 +46,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<SetupWindow>();
 
         collection.AddSingleton<Logger>();
+        collection.AddSingleton<SoundFilter>();
         collection.AddSingleton<InteropService>();
         collection.AddSingleton<ReportService>();
         collection.AddSingleton<SpeechService>();
@@ -56,6 +59,7 @@ public sealed class Plugin : IDalamudPlugin
 
         collection.AddHostedService(sp => sp.GetRequiredService<WindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<CommandService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<SoundFilter>());
         collection.AddHostedService(sp => sp.GetRequiredService<ReportService>());
         collection.AddHostedService(sp => sp.GetRequiredService<SpeechService>());
         collection.AddHostedService(sp => sp.GetRequiredService<DataService>());
