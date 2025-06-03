@@ -33,7 +33,7 @@ public class CommandService : IHostedService
       HelpMessage = $"Alias for {XivVoicesCommand}."
     });
 
-    Logger.Debug("EventService started");
+    Logger.Debug("CommandService started");
     return Task.CompletedTask;
   }
 
@@ -42,7 +42,7 @@ public class CommandService : IHostedService
     CommandManager.RemoveHandler(XivVoicesCommand);
     CommandManager.RemoveHandler(XivVoicesCommandAlias);
 
-    Logger.Debug("EventService stopped");
+    Logger.Debug("CommandService stopped");
     return Task.CompletedTask;
   }
 

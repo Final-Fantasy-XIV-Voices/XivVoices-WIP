@@ -1,25 +1,120 @@
-using System.Text;
-using System.Text.RegularExpressions;
+
+using System.Security.Cryptography;
 
 namespace XivVoices.Services;
 
-public class DataMapper
+public partial class MessageDispatcher
 {
-  private readonly Logger Logger;
-  private readonly IFramework Framework;
-  private readonly IClientState ClientState;
-
-  public DataMapper(Logger logger, IFramework framework, IClientState clientState)
+  private string GetRetainerSpeaker(string speaker, string sentence)
   {
-    Logger = logger;
-    Framework = framework;
-    ClientState = clientState;
+    if (DataService.Manifest == null) return speaker;
+
+    // We do a tiny bit of sanitization, basically just remove all except a-z, A-Z.
+    string sanitizedSentence = Regex.Replace(sentence, @"[^a-zA-Z]", "");
+    foreach (var key in DataService.Manifest.Retainers.Keys)
+    {
+      string sanitizedKey = Regex.Replace(key, @"[^a-zA-Z]", "");
+      if (sanitizedSentence.Equals(sanitizedKey))
+      {
+        return DataService.Manifest.Retainers[key];
+      }
+    }
+
+    return speaker;
+  }
+
+  private unsafe Task<NpcData?> GetNpcDataFromGameObject(IGameObject? gameObject)
+  {
+    return Framework.RunOnFrameworkThread(() =>
+    {
+      ICharacter? character = gameObject as ICharacter;
+      if (character == null) return null;
+
+      string speaker = character.Name.TextValue;
+
+      bool gender = Convert.ToBoolean(character!.Customize![(int)CustomizeIndex.Gender]);
+      byte race = character.Customize[(int)CustomizeIndex.Race];
+      byte tribe = character.Customize[(int)CustomizeIndex.Tribe];
+      byte body = character.Customize[(int)CustomizeIndex.ModelType];
+      byte eyes = character.Customize[(int)CustomizeIndex.EyeShape];
+
+      NpcData npcData = new NpcData
+      {
+        Gender = GetGender(gender),
+        Race = GetRace(race),
+        Tribe = GetTribe(tribe),
+        Body = GetBody(body),
+        Eyes = GetEyes(eyes),
+        Type = GetBody(body) == "Elderly" ? "Old" : "Default"
+      };
+
+      if (npcData.Body == "Beastman")
+      {
+        int skeletonId = ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)character.Address)->ModelContainer.ModelSkeletonId;
+        npcData.Race = GetSkeleton(skeletonId, ClientState.TerritoryType);
+
+        // I would like examples for why these workarounds are necessary,
+        // but as it stands this is copied from old XIVV
+        if (speaker.Contains("Moogle"))
+          npcData.Race = "Moogle";
+      }
+
+      return npcData;
+    });
+  }
+
+  // Try to get a voiceline filepath given a cleaned speaker and sentence and optionally NpcData.
+  private Task<(string? voicelinePath, string? voice)> TryGetVoicelinePath(string speaker, string sentence, NpcData? npcData)
+  {
+    return Task.Run(() =>
+    {
+      if (DataService.Manifest == null) return (null, null);
+      string voice;
+      if (speaker == "???" && DataService.Manifest.Nameless.TryGetValue(sentence, out var v1))
+      {
+        // If the speaker is "???", try getting it from Manifest.Nameless
+        voice = v1;
+        speaker = v1;
+      }
+      else if (DataService.Manifest.Voices.TryGetValue(speaker, out var v2))
+      {
+        // Else try to get the voice from Manifest.Voices based on the speaker
+        // This is used for non-generic voies
+        voice = v2;
+      }
+      else
+      {
+        // If no voice was found, get the generic voice from npcData, e.g. "Au_Ra_Raen_Female_01"
+        if (npcData == null) return (null, null); // If we have no NpcData, ggwp. We can't get a generic voice without npcData.
+        voice = GetGenericVoice(npcData, speaker);
+      }
+
+      Logger.Debug($"voice::{voice} speaker::{speaker} sentence::{sentence}");
+      string voicelinePath = Path.Join(Configuration.DataDirectory, "voices", Sha256(voice, speaker, sentence) + ".ogg");
+      Logger.Debug($"voicelinePath::{voicelinePath}");
+
+      if (!File.Exists(voicelinePath)) return (null, null);
+      return ((string?)voicelinePath, (string?)voice);
+    });
+  }
+
+  private string Sha256(params string[] inputs)
+  {
+    string combinedInput = string.Join(":", inputs);
+    byte[] inputBytes = Encoding.UTF8.GetBytes(combinedInput);
+    using (SHA256 sha256 = SHA256.Create())
+    {
+      byte[] hashBytes = sha256.ComputeHash(inputBytes);
+      StringBuilder sb = new StringBuilder();
+      foreach (byte b in hashBytes)
+        sb.Append(b.ToString("x2"));
+      return sb.ToString();
+    }
   }
 
   // Sanitizes the speaker and sentence. This should preferably NEVER be changed,
   // as that would break a lot of voicelines generated before then.
   // If we do want to add something here, make SURE it will NOT affect existing lines.
-
   public async Task<(string speaker, string sentence)> CleanMessage(string _speaker, string _sentence)
   {
     string speaker = _speaker;
@@ -46,10 +141,6 @@ public class DataMapper
 
     // Generic Sentence Sanitization
     {
-      // Remove leading "..." if present
-      if (sentence.StartsWith("..."))
-        sentence = sentence[3..];
-
       // Remove text in and including angled brackets, e.g. <sigh> <sniffle>
       sentence = Regex.Replace(sentence, "<[^<]*>", "");
 
@@ -64,7 +155,7 @@ public class DataMapper
         .Replace("–", "-")
         .Replace("\n", " ");
 
-      string fullLocalName = await Framework.RunOnFrameworkThread(() => ClientState.LocalPlayer?.Name.TextValue ?? null);
+      string? fullLocalName = await Framework.RunOnFrameworkThread(() => ClientState.LocalPlayer?.Name.TextValue ?? null);
       if (fullLocalName != null)
       {
         string[] fullname = fullLocalName.Split(" ");
@@ -126,7 +217,7 @@ public class DataMapper
 
         // 2-  Cactpot Winning Prize
         if (speaker == "Cactpot Cashier" && sentence.StartsWith("Congratulations! You have won"))
-            sentence = "Congratulations! You have won!";
+          sentence = "Congratulations! You have won!";
 
         // 3- Delivery Moogle carrier level removal
         pattern = @"Your postal prowess has earned you carrier level \d{2}";
@@ -149,7 +240,7 @@ public class DataMapper
         sentence = Regex.Replace(sentence, pattern, "You wish for your chocobo to unlearn an ability? Very well, if you would be so kind as to specify the undesired ability...");
 
         // 8- Feo Ul Lines
-        if(speaker == "Feo Ul")
+        if (speaker == "Feo Ul")
         {
           if (sentence.StartsWith("A whispered word, and off"))
             sentence = "A whispered word, and off goes yours on a grand adventure! What wonders await at journey's end?";
@@ -191,12 +282,21 @@ public class DataMapper
         if (speaker == "Mini Cactpot Broker")
         {
           if (sentence.StartsWith("We have a winner! Please accept my congratulations"))
-              sentence = "We have a winner! Please accept my congratulations!";
+            sentence = "We have a winner! Please accept my congratulations!";
           if (sentence.StartsWith("Congratulations! Here is your prize"))
-              sentence = "Congratulations! Here is your prize. Would you like to purchase another ticket?";
+            sentence = "Congratulations! Here is your prize. Would you like to purchase another ticket?";
         }
       }
 
+      // Reduce multiple whitespaces to one and Trim().
+      sentence = Regex.Replace(sentence, @"\s+", " ").Trim();
+
+      // This is at the end because of lines like "<gulp> <gulp> <gulp> ...See, empty already."
+      // Remove leading "..." if present
+      if (sentence.Trim().StartsWith("..."))
+        sentence = sentence[3..];
+
+      // Yes this second trim is intended.
       // Reduce multiple whitespaces to one and Trim().
       sentence = Regex.Replace(sentence, @"\s+", " ").Trim();
     }
@@ -989,10 +1089,13 @@ public class DataMapper
       { 1, "I" },
     };
 
-  private string RomanTo(int number) {
+  private string RomanTo(int number)
+  {
     var roman = new StringBuilder();
-    foreach (var item in NumberRomanDictionary) {
-      while (number >= item.Key) {
+    foreach (var item in NumberRomanDictionary)
+    {
+      while (number >= item.Key)
+      {
         roman.Append(item.Value);
         number -= item.Key;
       }
@@ -1000,21 +1103,26 @@ public class DataMapper
     return roman.ToString();
   }
 
-  private int RomanFrom(string roman) {
+  private int RomanFrom(string roman)
+  {
     int total = 0;
 
     int current, previous = 0;
     char currentRoman, previousRoman = '\0';
 
-    for (int i = 0; i < roman.Length; i++) {
+    for (int i = 0; i < roman.Length; i++)
+    {
       currentRoman = roman[i];
 
       previous = previousRoman != '\0' ? RomanNumberDictionary[previousRoman] : '\0';
       current = RomanNumberDictionary[currentRoman];
 
-      if (previous != 0 && current > previous) {
+      if (previous != 0 && current > previous)
+      {
         total = total - (2 * previous) + current;
-      } else {
+      }
+      else
+      {
         total += current;
       }
 
@@ -1024,11 +1132,14 @@ public class DataMapper
     return total;
   }
 
-  public string ConvertRomanNumerals(string text) {
+  private string ConvertRomanNumerals(string text)
+  {
     string value = text;
-    for (int i = 25; i > 5; i--) {
+    for (int i = 25; i > 5; i--)
+    {
       string numeral = RomanTo(i);
-      if (numeral.Length > 1) {
+      if (numeral.Length > 1)
+      {
         value = value.Replace(numeral, i.ToString());
       }
     }

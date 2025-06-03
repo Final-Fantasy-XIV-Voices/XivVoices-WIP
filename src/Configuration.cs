@@ -15,8 +15,20 @@ public class Configuration : IPluginConfiguration
   public bool IsSetupComplete = false;
   public bool ReplaceVoicedARRCutscenes = true;
 
-  public string DataDirectory = "/stuff/code/XivVoices-WIP/_data/voices"; // TODO: un-hardcode this
-  public string ManifestJsonPath = "/stuff/code/XivVoices-WIP/_data/manifest.json"; // TODO: un-hardcode this
+  public char DriveLetter = 'C';
+
+  public string DataDirectory => $"{DriveLetter}:/XivVoices";
+  public string ToolsDirectory => $"{DataDirectory}/Tools";
+  public const string LocalTTSVoiceMale = "en-gb-northern_english_male-medium";
+  public const string LocalTTSVoiceFemale = "en-gb-jenny_dioco-medium";
+
+  public string LocalTTSUngenderedVoice = "Female";
+  public bool LocalTTSPlayerSays = true; // TODO: better name
+
+  public int Speed = 150;
+  public int LocalTTSSpeed = 100;
+
+  public bool WineUseNativeFFmpeg = true;
 
   [NonSerialized]
   private Logger? Logger;

@@ -7,15 +7,25 @@
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <NoWarn>CS8500</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="src/nosound.scd" />
+    <EmbeddedResource Include="data/nosound.scd" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="data/ffmpeg-wine.sh">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>ffmpeg-wine.sh</TargetPath>
+      <Visible>false</Visible>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Concentus.OggFile" Version="1.0.6" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="Xabe.FFmpeg" Version="6.0.1" />
   </ItemGroup>
 </Project>

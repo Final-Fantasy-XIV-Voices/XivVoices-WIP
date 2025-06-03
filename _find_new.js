@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const SEARCHTERM = "sister will be disappointed";
+const SEARCHTERM = "is the reward lacking?";
 
-const PATH = "/stuff/code/XivVoices-WIP/_data/voices";
+const PATH = "/stuff/code/_xivv_data/voices";
 
 let count = 0;
 const files = fs.readdirSync(PATH);

@@ -48,26 +48,37 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<CommandService>();
         collection.AddSingleton<ConfigWindow>();
         collection.AddSingleton<SetupWindow>();
-
         collection.AddSingleton<Logger>();
-        collection.AddSingleton<SoundFilter>();
-        collection.AddSingleton<InteropService>();
-        collection.AddSingleton<ReportService>();
-        collection.AddSingleton<SpeechService>();
+
         collection.AddSingleton<DataService>();
-        collection.AddSingleton<DataMapper>();
-        collection.AddSingleton<AddonService>();
+        collection.AddSingleton<LocalTTSService>();
+        collection.AddSingleton<MessageDispatcher>();
+        collection.AddSingleton<InteropService>();
+        collection.AddSingleton<Lipsync>();
+        collection.AddSingleton<SoundFilter>();
+        collection.AddSingleton<PlaybackService>();
+        collection.AddSingleton<AudioPostProcessor>();
+        collection.AddSingleton<BattleTalkProvider>();
+        collection.AddSingleton<ChatMessageProvider>();
+        collection.AddSingleton<TalkProvider>();
+        collection.AddSingleton<ReportService>();
 
         collection.AddSingleton(InitializeConfiguration);
         collection.AddSingleton(new WindowSystem("XivVoices"));
 
         collection.AddHostedService(sp => sp.GetRequiredService<WindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<CommandService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<SoundFilter>());
-        collection.AddHostedService(sp => sp.GetRequiredService<ReportService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<SpeechService>());
+
         collection.AddHostedService(sp => sp.GetRequiredService<DataService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<AddonService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<LocalTTSService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<SoundFilter>());
+        collection.AddHostedService(sp => sp.GetRequiredService<MessageDispatcher>());
+        collection.AddHostedService(sp => sp.GetRequiredService<PlaybackService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<AudioPostProcessor>());
+        collection.AddHostedService(sp => sp.GetRequiredService<ReportService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<BattleTalkProvider>());
+        collection.AddHostedService(sp => sp.GetRequiredService<ChatMessageProvider>());
+        collection.AddHostedService(sp => sp.GetRequiredService<TalkProvider>());
       }).Build();
 
     _host.StartAsync();

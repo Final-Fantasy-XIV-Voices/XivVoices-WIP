@@ -1,12 +1,11 @@
-using Dalamud.Hooking;
-using Dalamud.Utility.Signatures;
 using System.Collections.Concurrent;
-using System.Runtime.InteropServices;
-using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
-using System.Text;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
+using Dalamud.Hooking;
+using Dalamud.Utility.Signatures;
+using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
 
 namespace XivVoices.Services;
 
@@ -26,7 +25,7 @@ public class SoundFilter : IHostedService
   private IntPtr NoSoundPtr;
   private IntPtr InfoPtr;
 
-  public event EventHandler<InterceptedSound> OnCutsceneAudioDetected;
+  public event EventHandler<InterceptedSound>? OnCutsceneAudioDetected;
 
   public SoundFilter(Logger logger, Configuration configuration, IGameInteropProvider interopProvider)
   {
@@ -69,7 +68,7 @@ public class SoundFilter : IHostedService
   {
     var assembly = Assembly.GetExecutingAssembly();
     string resourceName = assembly.GetManifestResourceNames().Single(str => str.EndsWith("nosound.scd"));
-    var noSound = assembly.GetManifestResourceStream(resourceName);
+    var noSound = assembly.GetManifestResourceStream(resourceName)!;
     using var memoryStream = new MemoryStream();
     noSound.CopyTo(memoryStream);
     return memoryStream.ToArray();

@@ -61,6 +61,9 @@ public class Logger
   public void Error(string text, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1) =>
     PluginLog.Error($"{FormatCallsite(callerPath, callerName, lineNumber)} {text}");
 
+  public void Error(Exception ex, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1) =>
+    PluginLog.Error($"{FormatCallsite(callerPath, callerName, lineNumber)} Exception: {ex}");
+
   public void Debug(string text, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1)
   {
     if (!Configuration.Debug) return;
@@ -82,15 +85,15 @@ public class Logger
     var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
     foreach (var prop in properties)
     {
-      object value = prop.GetValue(obj);
-      sb.AppendLine($"  {prop.Name}: {value}");
+      object? value = prop.GetValue(obj);
+      sb.AppendLine($"  {prop.Name}: {value ?? null}");
     }
 
     var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
     foreach (var field in fields)
     {
-      object value = field.GetValue(obj);
-      sb.AppendLine($"  {field.Name}: {value}");
+      object? value = field.GetValue(obj);
+      sb.AppendLine($"  {field.Name}: {value ?? null}");
     }
 
     if (properties.Length == 0 && fields.Length == 0)
