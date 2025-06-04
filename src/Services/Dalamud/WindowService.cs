@@ -38,7 +38,8 @@ public class WindowService : IHostedService
 
   private void ToggleConfigUi()
   {
-    ConfigWindow.Toggle();
+    if (!Configuration.IsSetupComplete) SetupWindow.Toggle();
+    else ConfigWindow.Toggle();
   }
 
   private void UiBuilderOnDraw()

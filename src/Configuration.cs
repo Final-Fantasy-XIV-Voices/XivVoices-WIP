@@ -6,8 +6,29 @@ namespace XivVoices;
 public class Configuration : IPluginConfiguration
 {
   public int Version { get; set; } = 0;
-  public bool Debug { get; set; } = false;
+
+  // Opt-out if you really hate the "spam" or whatever.
+  // It's easier if users have this enabled by default and can send logs after something goes wrong,
+  // instead of having to replicate it after toggling this option.
+  public bool Debug { get; set; } = true;
+
   public bool IsSetupComplete = false;
+  public bool ReplaceVoicedARRCutscenes = true;
+
+  public char DriveLetter = 'C';
+
+  public string DataDirectory => $"{DriveLetter}:/XivVoices";
+  public string ToolsDirectory => $"{DataDirectory}/Tools";
+  public const string LocalTTSVoiceMale = "en-gb-northern_english_male-medium";
+  public const string LocalTTSVoiceFemale = "en-gb-jenny_dioco-medium";
+
+  public string LocalTTSUngenderedVoice = "Female";
+  public bool LocalTTSPlayerSays = true; // TODO: better name
+
+  public int Speed = 150;
+  public int LocalTTSSpeed = 100;
+
+  public bool WineUseNativeFFmpeg = true;
 
   [NonSerialized]
   private Logger? Logger;
@@ -21,6 +42,7 @@ public class Configuration : IPluginConfiguration
 
     Logger.Configuration = this;
     ConfigurationMigrator.Migrate(this, Logger!);
+    Save(); // TODO: temporary for now, just so the config gets created.
   }
 
   public void Save() => PluginInterface!.SavePluginConfig(this);

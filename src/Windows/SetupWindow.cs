@@ -2,7 +2,7 @@ namespace XivVoices.Windows;
 
 public class SetupWindow : Window, IDisposable
 {
-  public SetupWindow() : base("XivVoices###SetupWindow")
+  public SetupWindow() : base("XivVoices###XivVoicesSetupWindow")
   {
 
   }
@@ -11,6 +11,6 @@ public class SetupWindow : Window, IDisposable
 
   public override void Draw()
   {
-
+    ImGui.TextUnformatted("w");
   }
 }
