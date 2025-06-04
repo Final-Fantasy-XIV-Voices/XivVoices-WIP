@@ -3,13 +3,13 @@ using NAudio.Wave.SampleProviders;
 
 namespace XivVoices.Services;
 
-// TODO: lipsync
 public class PlaybackService : IHostedService
 {
   private readonly Logger Logger;
   private readonly InteropService InteropService;
   private readonly LocalTTSService LocalTTSService;
   private readonly AudioPostProcessor AudioPostProcessor;
+  private readonly LipSync LipSync;
 
   private WaveOutEvent? OutputDevice;
   private MixingSampleProvider? Mixer;
@@ -18,12 +18,13 @@ public class PlaybackService : IHostedService
   private readonly object PlaybackHistoryLock = new();
   private readonly List<XivMessage> PlaybackHistory = new();
 
-  public PlaybackService(Logger logger, InteropService interopService, LocalTTSService localTTSService, AudioPostProcessor audioPostProcessor)
+  public PlaybackService(Logger logger, InteropService interopService, LocalTTSService localTTSService, AudioPostProcessor audioPostProcessor, LipSync lipSync)
   {
     Logger = logger;
     InteropService = interopService;
     LocalTTSService = localTTSService;
     AudioPostProcessor = audioPostProcessor;
+    LipSync = lipSync;
   }
 
   public Task StartAsync(CancellationToken cancellationToken)
@@ -87,7 +88,7 @@ public class PlaybackService : IHostedService
       Stop(MessageSource.AddonTalk);
     }
 
-    var track = new TrackableSound(message.Source, sourceStream, 0.5f); // TODO: read volume from config
+    var track = new TrackableSound(message.Id, message.Source, sourceStream, 0.5f); // TODO: read volume from config
     track.OnPlaybackStopped += t =>
     {
       // Apparently no need to call .RemoveMixerInput, it seems to automagically remove itself
@@ -106,6 +107,8 @@ public class PlaybackService : IHostedService
 
     Mixer.AddMixerInput(track);
     Playing[message.Id] = track;
+
+    LipSync.TryLipSync(message, track.TotalTime.TotalSeconds);
 
     if (!replay)
     {
@@ -206,12 +209,14 @@ public class PlaybackService : IHostedService
     if (key != null)
       Playing.TryRemove(key, out _);
 
+    LipSync.TryStopLipSync(track.MessageId);
     Logger.Debug("Track faded out and stopped.");
   }
 }
 
 public class TrackableSound : ISampleProvider, IDisposable
 {
+  public string MessageId { get; }
   public MessageSource MessageSource { get; }
   public WaveStream SourceStream { get; }
 
@@ -226,8 +231,9 @@ public class TrackableSound : ISampleProvider, IDisposable
   public TimeSpan CurrentTime => SourceStream.CurrentTime;
   public TimeSpan TotalTime => SourceStream.TotalTime;
 
-  public TrackableSound(MessageSource messageSource, WaveStream sourceStream, float volume)
+  public TrackableSound(string messageId, MessageSource messageSource, WaveStream sourceStream, float volume)
   {
+    MessageId = messageId;
     MessageSource = messageSource;
     SourceStream = sourceStream;
     InnerProvider = sourceStream.ToSampleProvider();

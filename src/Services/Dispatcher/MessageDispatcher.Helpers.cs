@@ -23,11 +23,10 @@ public partial class MessageDispatcher
     return speaker;
   }
 
-  private unsafe Task<NpcData?> GetNpcDataFromGameObject(IGameObject? gameObject)
+  private unsafe Task<NpcData?> GetNpcDataFromCharacter(ICharacter? character)
   {
     return Framework.RunOnFrameworkThread(() =>
     {
-      ICharacter? character = gameObject as ICharacter;
       if (character == null) return null;
 
       string speaker = character.Name.TextValue;

@@ -25,16 +25,16 @@ public class InteropService
     GameGui = gameGui;
   }
 
-  public Task<IGameObject?> GetGameObjectByName(string name)
+  public Task<ICharacter?> TryFindCharacterByName(string name)
   {
     return Framework.RunOnFrameworkThread(() =>
     {
       foreach (IGameObject gameObject in ObjectTable)
       {
-        if (gameObject as ICharacter == null || /* gameObject as ICharacter == ClientState.LocalPlayer || */ gameObject.Name.TextValue == "") continue;
+        if (gameObject as ICharacter == null || gameObject.Name.TextValue == "") continue;
         if (gameObject.Name.TextValue == name)
         {
-          return gameObject;
+          return gameObject as ICharacter;
         }
       }
 

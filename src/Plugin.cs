@@ -54,7 +54,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<LocalTTSService>();
         collection.AddSingleton<MessageDispatcher>();
         collection.AddSingleton<InteropService>();
-        collection.AddSingleton<Lipsync>();
+        collection.AddSingleton<LipSync>();
         collection.AddSingleton<SoundFilter>();
         collection.AddSingleton<PlaybackService>();
         collection.AddSingleton<AudioPostProcessor>();

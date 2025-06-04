@@ -114,10 +114,10 @@ public partial class MessageDispatcher : IHostedService
     if (npcData == null)
     {
       Logger.Debug("Trying to get NpcData from GameObject");
-      IGameObject? gameObject = await InteropService.GetGameObjectByName(speaker);
-      Logger.Debug(gameObject == null ? $"No GameObject with name {speaker} found" : $"GameObject with name {speaker} found");
-      npcData = await GetNpcDataFromGameObject(gameObject);
-      Logger.Debug(npcData == null ? "Failed to get NpcData from GameObject" : "Grabbed NpcData from GameObject");
+      ICharacter? character = await InteropService.TryFindCharacterByName(speaker);
+      Logger.Debug(character == null ? $"No Character with name {speaker} found" : $"Character with name {speaker} found");
+      npcData = await GetNpcDataFromCharacter(character);
+      Logger.Debug(npcData == null ? "Failed to get NpcData from Character" : "Grabbed NpcData from Character");
     }
 
     string? voicelinePath = null;
