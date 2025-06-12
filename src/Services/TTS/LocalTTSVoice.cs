@@ -3,7 +3,6 @@ namespace XivVoices.Services;
 public interface ILocalTTSVoice : IDisposable
 {
   IntPtr Pointer { get; }
-  void SetSpeakerId(int speakerId);
   void AcquireReaderLock();
   void ReleaseReaderLock();
 }
@@ -11,35 +10,29 @@ public interface ILocalTTSVoice : IDisposable
 public class LocalTTSVoice : ILocalTTSVoice
 {
   private const int Timeout = 8000;
-  private readonly ReaderWriterLock Lock = new();
+  private readonly ReaderWriterLock _lock = new();
+  private readonly string _voiceName;
 
-  private readonly Logger Logger;
-  private readonly Configuration Configuration;
-  private readonly LocalTTSService LocalTTSService;
+  private readonly ILogger _logger;
 
   public IntPtr Pointer { get; private set; }
-  public FixedPointerToHeapAllocatedMem? ConfigPointer { get; private set; }
-  public FixedPointerToHeapAllocatedMem? ModelPointer { get; private set; }
+  public FixedPointerToHeapAllocatedMem ConfigPointer { get; private set; }
+  public FixedPointerToHeapAllocatedMem ModelPointer { get; private set; }
   public bool Disposed { get; private set; }
 
   public LocalTTSVoice(
     string voiceName,
-    Logger logger,
-    Configuration configuration,
-    LocalTTSService localTTSService
+    string toolsDirectory,
+    ILogger logger
   )
   {
-    Logger = logger;
-    Configuration = configuration;
-    LocalTTSService = localTTSService;
+    _voiceName = voiceName;
+    _logger = logger;
 
-    LoadVoice(voiceName);
-  }
+    _logger.Debug($"[{_voiceName}] Loading voice");
 
-  private void LoadVoice(string voiceName)
-  {
-    var modelPath = Path.Combine(Configuration.ToolsDirectory, $"{voiceName}.bytes");
-    var configPath = Path.Combine(Configuration.ToolsDirectory, $"{voiceName}.config.json");
+    string modelPath = Path.Combine(toolsDirectory, $"{_voiceName}.bytes");
+    string configPath = Path.Combine(toolsDirectory, $"{_voiceName}.config.json");
 
     if (!File.Exists(modelPath))
       throw new FileNotFoundException($"Missing voice model: {modelPath}");
@@ -50,43 +43,51 @@ public class LocalTTSVoice : ILocalTTSVoice
     byte[] modelBytes = File.ReadAllBytes(modelPath);
     byte[] configBytes = File.ReadAllBytes(configPath);
 
+    _logger.Debug($"[{_voiceName}] Allocating voice config and model");
     ConfigPointer = FixedPointerToHeapAllocatedMem.Create(configBytes, (uint)configBytes.Length);
     ModelPointer = FixedPointerToHeapAllocatedMem.Create(modelBytes, (uint)modelBytes.Length);
 
-    Pointer = LocalTTSService.LocalTTSLoadVoice(
+    _logger.Debug($"[{_voiceName}] LocalTTSLoadVoice {ConfigPointer.Address} {ConfigPointer.SizeInBytes} {ModelPointer.Address} {ModelPointer.SizeInBytes}");
+    Pointer = LocalTTSEngine.LocalTTSLoadVoice(
       ConfigPointer.Address, ConfigPointer.SizeInBytes,
       ModelPointer.Address, ModelPointer.SizeInBytes
     );
 
-    LocalTTSService.LocalTTSSetSpeakerId(Pointer, 0);
-    Logger.Debug($"Voice '{voiceName}' loaded successfully.");
+    _logger.Debug($"[{_voiceName}] LocalTTSSetSpeakerId {Pointer} 0");
+    LocalTTSEngine.LocalTTSSetSpeakerId(Pointer, 0);
+
+    _logger.Debug($"[{_voiceName}] Voice loaded successfully.");
   }
 
-  public void SetSpeakerId(int speakerId) =>
-    LocalTTSService.LocalTTSSetSpeakerId(Pointer, speakerId);
-
-  public void AcquireReaderLock()
-  {
-    try { Lock.AcquireReaderLock(Timeout); }
-    catch { throw; }
-  }
+  public void AcquireReaderLock() =>
+    _lock.AcquireReaderLock(Timeout);
 
   public void ReleaseReaderLock() =>
-    Lock.ReleaseReaderLock();
+    _lock.ReleaseReaderLock();
 
   public void Dispose()
   {
-    Lock.AcquireWriterLock(Timeout);
-    if (Disposed) return;
+    _lock.AcquireWriterLock(Timeout);
+    try
+    {
+      if (Disposed) return;
+      Disposed = true;
 
-    Disposed = true;
+      _logger.Debug($"[{_voiceName}] ConfigPointer.Free {ConfigPointer}");
+      ConfigPointer.Free();
 
-    ConfigPointer?.Free();
-    ModelPointer?.Free();
-    LocalTTSService.LocalTTSFreeVoice(Pointer);
+      _logger.Debug($"[{_voiceName}] ModelPointer.Free {ModelPointer}");
+      ModelPointer.Free();
 
-    Lock.ReleaseWriterLock();
-    Logger.Debug("Voice resources disposed.");
+      _logger.Debug($"[{_voiceName}] LocalTTSFreeVoice {Pointer}");
+      LocalTTSEngine.LocalTTSFreeVoice(Pointer);
+
+      _logger.Debug($"[{_voiceName}] Voice resources disposed.");
+    }
+    finally
+    {
+      _lock.ReleaseWriterLock();
+    }
   }
 }
 
@@ -95,15 +96,9 @@ public class FixedPointerToHeapAllocatedMem : IDisposable
   private GCHandle _handle;
   public IntPtr Address { get; private set; }
 
-  public void Free()
-  {
-    _handle.Free();
-    Address = IntPtr.Zero;
-  }
-
   public static FixedPointerToHeapAllocatedMem Create<T>(T Object, uint SizeInBytes)
   {
-    var pointer = new FixedPointerToHeapAllocatedMem
+    FixedPointerToHeapAllocatedMem pointer = new()
     {
       _handle = GCHandle.Alloc(Object, GCHandleType.Pinned),
       SizeInBytes = SizeInBytes
@@ -112,7 +107,9 @@ public class FixedPointerToHeapAllocatedMem : IDisposable
     return pointer;
   }
 
-  public void Dispose()
+  public bool IsValid => _handle.IsAllocated && Address != IntPtr.Zero;
+
+  public void Free()
   {
     if (_handle.IsAllocated)
     {
@@ -120,6 +117,8 @@ public class FixedPointerToHeapAllocatedMem : IDisposable
       Address = IntPtr.Zero;
     }
   }
+
+  public void Dispose() => Free();
 
   public uint SizeInBytes { get; private set; }
 }

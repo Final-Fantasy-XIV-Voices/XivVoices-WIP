@@ -13,6 +13,28 @@ insert_final_newline = true
 # C# Specific Rules
 [*.cs]
 
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.IDE0130.severity = none
+dotnet_diagnostic.SYSLIB1045.severity = none
+dotnet_diagnostic.CA1816.severity = none
+dotnet_diagnostic.CS9107.severity = none
+
+# Symbol group: all private instance fields (excluding const)
+dotnet_naming_symbols.private_instance_fields.applicable_kinds = field
+dotnet_naming_symbols.private_instance_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_instance_fields.required_modifiers = readonly  # optional, if you want readonly only
+dotnet_naming_symbols.private_instance_fields.excluded_modifiers = const
+
+# Naming style: underscore + camelCase
+dotnet_naming_style.require_underscore_prefix_and_camel_case.required_prefix = _
+dotnet_naming_style.require_underscore_prefix_and_camel_case.capitalization = camel_case
+
+# Naming rule: apply the style to private instance fields (not consts)
+dotnet_naming_rule.private_instance_fields_must_have_underscore_and_camel_case.symbols = private_instance_fields
+dotnet_naming_rule.private_instance_fields_must_have_underscore_and_camel_case.style = require_underscore_prefix_and_camel_case
+dotnet_naming_rule.private_instance_fields_must_have_underscore_and_camel_case.severity = warning
+
+
 # Indentation
 csharp_indent_block_contents = true
 csharp_indent_braces = false

@@ -1,60 +1,45 @@
 namespace XivVoices.Services;
 
-public class WindowService : IHostedService
+public interface IWindowService : IHostedService;
+
+public class WindowService(ILogger _logger, IDataService _dataService, IDalamudPluginInterface _pluginInterface, WindowSystem _windowSystem, ConfigWindow _configWindow) : IWindowService
 {
-  private readonly Logger Logger;
-  private readonly Configuration Configuration;
-  private readonly IDalamudPluginInterface PluginInterface;
-  private readonly WindowSystem WindowSystem;
-  private readonly ConfigWindow ConfigWindow;
-  private readonly SetupWindow SetupWindow;
-
-  public WindowService(Logger logger, Configuration configuration, IDalamudPluginInterface pluginInterface, WindowSystem windowSystem, ConfigWindow configWindow, SetupWindow setupWindow)
-  {
-    Logger = logger;
-    Configuration = configuration;
-    PluginInterface = pluginInterface;
-    WindowSystem = windowSystem;
-    ConfigWindow = configWindow;
-    SetupWindow = setupWindow;
-  }
-
   public Task StartAsync(CancellationToken cancellationToken)
   {
-    WindowSystem.AddWindow(ConfigWindow);
-    WindowSystem.AddWindow(SetupWindow);
+    _windowSystem.AddWindow(_configWindow);
 
-    PluginInterface.UiBuilder.Draw += UiBuilderOnDraw;
-    PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
+    _pluginInterface.UiBuilder.Draw += UiBuilderOnDraw;
+    _pluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
 
-    if (!Configuration.IsSetupComplete)
+    if (_dataService.DataDirectory == null)
     {
-      SetupWindow.IsOpen = true;
+      _configWindow.IsOpen = true;
+      _configWindow.SelectedTab = ConfigWindowTab.Overview;
+      _logger.Debug("DataDirectory does not exist, opening Setup");
     }
 
-    Logger.Debug("WindowService started");
+    _logger.ServiceLifecycle();
+    return Task.CompletedTask;
+  }
+
+  public Task StopAsync(CancellationToken cancellationToken)
+  {
+    _pluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
+    _pluginInterface.UiBuilder.Draw -= UiBuilderOnDraw;
+
+    _windowSystem.RemoveAllWindows();
+
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
   private void ToggleConfigUi()
   {
-    if (!Configuration.IsSetupComplete) SetupWindow.Toggle();
-    else ConfigWindow.Toggle();
+    _configWindow.Toggle();
   }
 
   private void UiBuilderOnDraw()
   {
-    WindowSystem.Draw();
-  }
-
-  public Task StopAsync(CancellationToken cancellationToken)
-  {
-    PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
-    PluginInterface.UiBuilder.Draw -= UiBuilderOnDraw;
-
-    WindowSystem.RemoveAllWindows();
-
-    Logger.Debug("WindowService stopped");
-    return Task.CompletedTask;
+    _windowSystem.Draw();
   }
 }

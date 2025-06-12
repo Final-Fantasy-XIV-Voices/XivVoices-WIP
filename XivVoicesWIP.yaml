@@ -1,7 +1,8 @@
 name: XivVoices WIP
 author: keifufu
-punchline: TODO
-description: TODO
+punchline: Voicing every dialogues in FFXIV.
+description: A plugin that enhances your gaming experience by adding voice to every NPC dialogue, battle interaction, and more. /xivv
 tags:
   - XivVoices
-repo_url: https://github.com/Final-Fantasy-XIV-Voices/XivVoices-WIP
+  - XIVV
+repo_url: https://github.com/Final-Fantasy-XIV-Voices/XivVoices

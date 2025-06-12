@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ILogger = XivVoices.Services.ILogger;
 
 namespace XivVoices;
 
@@ -19,7 +20,10 @@ public sealed class Plugin : IDalamudPlugin
     IAddonLifecycle addonLifecycle,
     IObjectTable objectTable,
     IGameInteropProvider interopProvider,
-    ICondition condition
+    ICondition condition,
+    IKeyState keyState,
+    IDataManager dataManager,
+    ITextureProvider textureProvider
   )
   {
     _host = new HostBuilder()
@@ -43,42 +47,44 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(objectTable);
         collection.AddSingleton(interopProvider);
         collection.AddSingleton(condition);
+        collection.AddSingleton(keyState);
+        collection.AddSingleton(dataManager);
+        collection.AddSingleton(textureProvider);
 
-        collection.AddSingleton<WindowService>();
-        collection.AddSingleton<CommandService>();
+        collection.AddSingleton<IWindowService, WindowService>();
+        collection.AddSingleton<ICommandService, CommandService>();
         collection.AddSingleton<ConfigWindow>();
-        collection.AddSingleton<SetupWindow>();
-        collection.AddSingleton<Logger>();
+        collection.AddSingleton<ILogger, Logger>();
 
-        collection.AddSingleton<DataService>();
-        collection.AddSingleton<LocalTTSService>();
-        collection.AddSingleton<MessageDispatcher>();
-        collection.AddSingleton<InteropService>();
-        collection.AddSingleton<LipSync>();
-        collection.AddSingleton<SoundFilter>();
-        collection.AddSingleton<PlaybackService>();
-        collection.AddSingleton<AudioPostProcessor>();
-        collection.AddSingleton<BattleTalkProvider>();
-        collection.AddSingleton<ChatMessageProvider>();
-        collection.AddSingleton<TalkProvider>();
-        collection.AddSingleton<ReportService>();
+        collection.AddSingleton<IDataService, DataService>();
+        collection.AddSingleton<ILocalTTSService, LocalTTSService>();
+        collection.AddSingleton<IMessageDispatcher, MessageDispatcher>();
+        collection.AddSingleton<IGameInteropService, GameInteropService>();
+        collection.AddSingleton<ILipSync, LipSync>();
+        collection.AddSingleton<ISoundFilter, SoundFilter>();
+        collection.AddSingleton<IPlaybackService, PlaybackService>();
+        collection.AddSingleton<IAudioPostProcessor, AudioPostProcessor>();
+        collection.AddSingleton<IAddonBattleTalkProvider, AddonBattleTalkProvider>();
+        collection.AddSingleton<IAddonMiniTalkProvider, AddonMiniTalkProvider>();
+        collection.AddSingleton<IChatMessageProvider, ChatMessageProvider>();
+        collection.AddSingleton<IAddonTalkProvider, AddonTalkProvider>();
+        collection.AddSingleton<IReportService, ReportService>();
 
         collection.AddSingleton(InitializeConfiguration);
         collection.AddSingleton(new WindowSystem("XivVoices"));
 
-        collection.AddHostedService(sp => sp.GetRequiredService<WindowService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<CommandService>());
-
-        collection.AddHostedService(sp => sp.GetRequiredService<DataService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<LocalTTSService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<SoundFilter>());
-        collection.AddHostedService(sp => sp.GetRequiredService<MessageDispatcher>());
-        collection.AddHostedService(sp => sp.GetRequiredService<PlaybackService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<AudioPostProcessor>());
-        collection.AddHostedService(sp => sp.GetRequiredService<ReportService>());
-        collection.AddHostedService(sp => sp.GetRequiredService<BattleTalkProvider>());
-        collection.AddHostedService(sp => sp.GetRequiredService<ChatMessageProvider>());
-        collection.AddHostedService(sp => sp.GetRequiredService<TalkProvider>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IDataService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<ISoundFilter>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IMessageDispatcher>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IPlaybackService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IAudioPostProcessor>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IReportService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IAddonBattleTalkProvider>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IAddonMiniTalkProvider>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IChatMessageProvider>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IAddonTalkProvider>());
       }).Build();
 
     _host.StartAsync();
@@ -86,7 +92,7 @@ public sealed class Plugin : IDalamudPlugin
 
   private Configuration InitializeConfiguration(IServiceProvider s)
   {
-    Logger logger = s.GetRequiredService<Logger>();
+    ILogger logger = s.GetRequiredService<ILogger>();
     IDalamudPluginInterface pluginInterface = s.GetRequiredService<IDalamudPluginInterface>();
     Configuration configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
     configuration.Initialize(logger, pluginInterface);

@@ -9,25 +9,25 @@ public static class SSMLPreprocessor
 {
   public static SpeechUnit[] Preprocess(string ssml)
   {
-    if (ssml.Length == 0) return Array.Empty<SpeechUnit>();
-    var speechUnits = new List<SpeechUnit>();
-    var currentUnit = new StringBuilder();
+    if (ssml.Length == 0) return [];
+    List<SpeechUnit> speechUnits = [];
+    StringBuilder currentUnit = new();
 
-    using (var reader = new StringReader(ssml))
+    using (StringReader reader = new(ssml))
     {
       while (reader.Peek() != -1)
       {
-        var nextChar = (char)reader.Read();
+        char nextChar = (char)reader.Read();
 
         if (nextChar == '<')
         {
-          var tagBuilder = new StringBuilder();
+          StringBuilder tagBuilder = new();
           while (reader.Peek() != -1 && (nextChar = (char)reader.Read()) != '>')
           {
             tagBuilder.Append(nextChar);
           }
 
-          var tag = tagBuilder.ToString();
+          string tag = tagBuilder.ToString();
 
           if (tag.StartsWith("break"))
           {
@@ -52,6 +52,6 @@ public static class SSMLPreprocessor
       speechUnits.Add(new SpeechUnit { Text = currentUnit.ToString() });
     }
 
-    return speechUnits.ToArray();
+    return [.. speechUnits];
   }
 }

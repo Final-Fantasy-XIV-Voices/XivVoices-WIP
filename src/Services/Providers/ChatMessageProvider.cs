@@ -4,32 +4,25 @@ using Dalamud.Game.Text.SeStringHandling.Payloads;
 
 namespace XivVoices.Services;
 
-public class ChatMessageProvider : IHostedService
+public interface IChatMessageProvider : IHostedService;
+
+public class ChatMessageProvider(ILogger _logger, Configuration _configuration, IMessageDispatcher _messageDispatcher, IChatGui _chatGui, IClientState _clientState, IFramework _framework, IPlaybackService playbackService) : PlaybackQueue(MessageSource.ChatMessage, _logger, _framework, playbackService, _messageDispatcher), IChatMessageProvider
 {
-  private readonly Logger Logger;
-  private readonly MessageDispatcher MessageDispatcher;
-  private readonly IChatGui ChatGui;
-
-  public ChatMessageProvider(Logger logger, MessageDispatcher messageDispatcher, IChatGui chatGui)
-  {
-    Logger = logger;
-    MessageDispatcher = messageDispatcher;
-    ChatGui = chatGui;
-  }
-
   public Task StartAsync(CancellationToken cancellationToken)
   {
-    ChatGui.ChatMessage += OnChatMessage;
+    QueueStart();
+    _chatGui.ChatMessage += OnChatMessage;
 
-    Logger.Debug("ChatMessageProvider started");
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
   public Task StopAsync(CancellationToken cancellationToken)
   {
-    ChatGui.ChatMessage -= OnChatMessage;
+    QueueStop();
+    _chatGui.ChatMessage -= OnChatMessage;
 
-    Logger.Debug("ChatMessageProvider stopped");
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
@@ -38,17 +31,15 @@ public class ChatMessageProvider : IHostedService
     string speaker = "";
     try
     {
-      foreach (var item in sender.Payloads)
+      foreach (Payload item in sender.Payloads)
       {
-        var player = item as PlayerPayload;
-        var text = item as TextPayload;
-        if (player != null)
+        if (item is PlayerPayload player)
         {
           speaker = player.PlayerName;
           break;
         }
 
-        if (text != null && text.Text != null)
+        if (item is TextPayload text && text.Text != null)
         {
           speaker = text.Text;
           break;
@@ -57,21 +48,34 @@ public class ChatMessageProvider : IHostedService
     }
     catch { }
 
-    // TODO: handle type == XivChatType.NPCDialogue
-    // TODO: handle type == XivChatType.NPCDialogueAnnouncements
-    // ^ the old plugin does this at least.
-
+    bool allowed = false;
     switch (type)
     {
       case XivChatType.Say:
+        allowed = _configuration.ChatSayEnabled;
+        break;
+      case XivChatType.TellOutgoing:
+        if (_clientState.LocalPlayer != null)
+          speaker = _clientState.LocalPlayer.Name.ToString();
+        allowed = _configuration.ChatTellEnabled;
+        break;
       case XivChatType.TellIncoming:
-      // case XivChatType.TellOutgoing:
+        allowed = _configuration.ChatTellEnabled;
+        break;
       case XivChatType.Shout:
       case XivChatType.Yell:
+        allowed = _configuration.ChatShoutYellEnabled;
+        break;
       case XivChatType.Party:
       case XivChatType.CrossParty:
+        allowed = _configuration.ChatPartyEnabled;
+        break;
       case XivChatType.Alliance:
+        allowed = _configuration.ChatAllianceEnabled;
+        break;
       case XivChatType.FreeCompany:
+        allowed = _configuration.ChatFreeCompanyEnabled;
+        break;
       case XivChatType.CrossLinkShell1:
       case XivChatType.CrossLinkShell2:
       case XivChatType.CrossLinkShell3:
@@ -88,8 +92,19 @@ public class ChatMessageProvider : IHostedService
       case XivChatType.Ls6:
       case XivChatType.Ls7:
       case XivChatType.Ls8:
-        _ = MessageDispatcher.TryDispatch(MessageSource.ChatMessage, speaker, sentence.ToString());
+        allowed = _configuration.ChatLinkshellEnabled;
         break;
+      case XivChatType.CustomEmote:
+      case XivChatType.StandardEmote:
+        allowed = _configuration.ChatEmoteEnabled;
+        break;
+    }
+
+    if (allowed)
+    {
+      _logger.Debug($"speaker::{speaker} sentence::{sentence}");
+      QueueEnabled = _configuration.QueueChatMessages;
+      EnqueueMessage(speaker, sentence.ToString());
     }
   }
 }

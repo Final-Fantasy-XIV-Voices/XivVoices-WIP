@@ -1,27 +1,46 @@
-using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Text;
 using Dalamud.Game.Gui.Toast;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 
 namespace XivVoices.Services;
 
-public class Logger
+public interface ILogger
+{
+  Configuration Configuration { get; set; }
+
+  void Toast(string pre, string italic = "", string post = "");
+  void Chat(string pre, string italic = "", string post = "");
+
+  void Error(string text,
+      [CallerFilePath] string callerPath = "",
+      [CallerMemberName] string callerName = "",
+      [CallerLineNumber] int lineNumber = -1);
+
+  void Error(Exception ex,
+      [CallerFilePath] string callerPath = "",
+      [CallerMemberName] string callerName = "",
+      [CallerLineNumber] int lineNumber = -1);
+
+  void Debug(string text,
+      [CallerFilePath] string callerPath = "",
+      [CallerMemberName] string callerName = "",
+      [CallerLineNumber] int lineNumber = -1);
+
+  void DebugObj<T>(T obj,
+      [CallerFilePath] string callerPath = "",
+      [CallerMemberName] string callerName = "",
+      [CallerLineNumber] int lineNumber = -1);
+
+  void ServiceLifecycle(string? status = null,
+      [CallerFilePath] string callerPath = "",
+      [CallerMemberName] string callerName = "",
+      [CallerLineNumber] int lineNumber = -1);
+}
+
+public class Logger(IPluginLog PluginLog, IToastGui ToastGui, IChatGui ChatGui) : ILogger
 {
   public Configuration Configuration { get; set; } = new Configuration();
-
-  private readonly IPluginLog PluginLog;
-  private readonly IToastGui ToastGui;
-  private readonly IChatGui ChatGui;
-
-  public Logger(IPluginLog pluginLog, IToastGui toastGui, IChatGui chatGui)
-  {
-    PluginLog = pluginLog;
-    ToastGui = toastGui;
-    ChatGui = chatGui;
-  }
 
   public void Toast(string pre, string italic = "", string post = "")
   {
@@ -66,31 +85,31 @@ public class Logger
 
   public void Debug(string text, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1)
   {
-    if (!Configuration.Debug) return;
+    if (!Configuration.DebugLogging) return;
     PluginLog.Debug($"{FormatCallsite(callerPath, callerName, lineNumber)} {text}");
   }
 
-  public void Debug<T>(T obj, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1)
+  public void DebugObj<T>(T obj, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1)
   {
     if (obj == null)
     {
-      Debug((string)"null", callerPath, callerName, lineNumber);
+      Debug("null", callerPath, callerName, lineNumber);
       return;
     }
 
     Type type = typeof(T);
-    StringBuilder sb = new StringBuilder();
+    StringBuilder sb = new();
     sb.AppendLine($"Type: {type.Name}");
 
-    var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-    foreach (var prop in properties)
+    PropertyInfo[] properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+    foreach (PropertyInfo prop in properties)
     {
       object? value = prop.GetValue(obj);
       sb.AppendLine($"  {prop.Name}: {value ?? null}");
     }
 
-    var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
-    foreach (var field in fields)
+    FieldInfo[] fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+    foreach (FieldInfo field in fields)
     {
       object? value = field.GetValue(obj);
       sb.AppendLine($"  {field.Name}: {value ?? null}");
@@ -100,5 +119,21 @@ public class Logger
       sb.AppendLine("  No public properties or fields found.");
 
     Debug(sb.ToString(), callerPath, callerName, lineNumber);
+  }
+
+  public void ServiceLifecycle(string? status = null, [CallerFilePath] string callerPath = "", [CallerMemberName] string callerName = "", [CallerLineNumber] int lineNumber = -1)
+  {
+    string lifecycleStage = status ??
+      (callerName.Contains("Start")
+      ? "started" : callerName.Contains("Stop")
+      ? "stopped" : "changed");
+
+    string className = new System.Diagnostics.StackTrace()
+      .GetFrame(1)
+      ?.GetMethod()
+      ?.DeclaringType
+      ?.Name ?? "UnknownClass";
+
+    Debug($"{className} {lifecycleStage}", callerPath, callerName, lineNumber);
   }
 }

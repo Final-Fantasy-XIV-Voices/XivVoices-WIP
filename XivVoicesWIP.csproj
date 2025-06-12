@@ -7,7 +7,6 @@
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
     <IsPackable>false</IsPackable>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <NoWarn>CS8500</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +17,16 @@
     <Content Include="data/ffmpeg-wine.sh">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <TargetPath>ffmpeg-wine.sh</TargetPath>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="data/logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>logo.png</TargetPath>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="data/discord.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>discord.png</TargetPath>
       <Visible>false</Visible>
     </Content>
   </ItemGroup>

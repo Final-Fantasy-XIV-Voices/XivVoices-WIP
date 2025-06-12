@@ -7,59 +7,20 @@ public partial class MessageDispatcher
 {
   private string GetRetainerSpeaker(string speaker, string sentence)
   {
-    if (DataService.Manifest == null) return speaker;
+    if (_dataService.Manifest == null) return speaker;
 
     // We do a tiny bit of sanitization, basically just remove all except a-z, A-Z.
     string sanitizedSentence = Regex.Replace(sentence, @"[^a-zA-Z]", "");
-    foreach (var key in DataService.Manifest.Retainers.Keys)
+    foreach (string? key in _dataService.Manifest.Retainers.Keys)
     {
       string sanitizedKey = Regex.Replace(key, @"[^a-zA-Z]", "");
       if (sanitizedSentence.Equals(sanitizedKey))
       {
-        return DataService.Manifest.Retainers[key];
+        return _dataService.Manifest.Retainers[key];
       }
     }
 
     return speaker;
-  }
-
-  private unsafe Task<NpcData?> GetNpcDataFromCharacter(ICharacter? character)
-  {
-    return Framework.RunOnFrameworkThread(() =>
-    {
-      if (character == null) return null;
-
-      string speaker = character.Name.TextValue;
-
-      bool gender = Convert.ToBoolean(character!.Customize![(int)CustomizeIndex.Gender]);
-      byte race = character.Customize[(int)CustomizeIndex.Race];
-      byte tribe = character.Customize[(int)CustomizeIndex.Tribe];
-      byte body = character.Customize[(int)CustomizeIndex.ModelType];
-      byte eyes = character.Customize[(int)CustomizeIndex.EyeShape];
-
-      NpcData npcData = new NpcData
-      {
-        Gender = GetGender(gender),
-        Race = GetRace(race),
-        Tribe = GetTribe(tribe),
-        Body = GetBody(body),
-        Eyes = GetEyes(eyes),
-        Type = GetBody(body) == "Elderly" ? "Old" : "Default"
-      };
-
-      if (npcData.Body == "Beastman")
-      {
-        int skeletonId = ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)character.Address)->ModelContainer.ModelSkeletonId;
-        npcData.Race = GetSkeleton(skeletonId, ClientState.TerritoryType);
-
-        // I would like examples for why these workarounds are necessary,
-        // but as it stands this is copied from old XIVV
-        if (speaker.Contains("Moogle"))
-          npcData.Race = "Moogle";
-      }
-
-      return npcData;
-    });
   }
 
   // Try to get a voiceline filepath given a cleaned speaker and sentence and optionally NpcData.
@@ -67,15 +28,15 @@ public partial class MessageDispatcher
   {
     return Task.Run(() =>
     {
-      if (DataService.Manifest == null) return (null, null);
+      if (_dataService.Manifest == null) return (null, null);
       string voice;
-      if (speaker == "???" && DataService.Manifest.Nameless.TryGetValue(sentence, out var v1))
+      if (speaker == "???" && _dataService.Manifest.Nameless.TryGetValue(sentence, out string? v1))
       {
         // If the speaker is "???", try getting it from Manifest.Nameless
         voice = v1;
         speaker = v1;
       }
-      else if (DataService.Manifest.Voices.TryGetValue(speaker, out var v2))
+      else if (_dataService.Manifest.Voices.TryGetValue(speaker, out string? v2))
       {
         // Else try to get the voice from Manifest.Voices based on the speaker
         // This is used for non-generic voies
@@ -83,32 +44,29 @@ public partial class MessageDispatcher
       }
       else
       {
-        // If no voice was found, get the generic voice from npcData, e.g. "Au_Ra_Raen_Female_01"
+        // If no voice was found, get the generic voice from npcData, e.g. "Au_Ra_Raen_Female_05"
         if (npcData == null) return (null, null); // If we have no NpcData, ggwp. We can't get a generic voice without npcData.
         voice = GetGenericVoice(npcData, speaker);
       }
 
-      Logger.Debug($"voice::{voice} speaker::{speaker} sentence::{sentence}");
-      string voicelinePath = Path.Join(Configuration.DataDirectory, "voices", Sha256(voice, speaker, sentence) + ".ogg");
-      Logger.Debug($"voicelinePath::{voicelinePath}");
+      _logger.Debug($"voice::{voice} speaker::{speaker} sentence::{sentence}");
+      string voicelinePath = Path.Join(_dataService.DataDirectory, "voicelines", Md5(voice, speaker, sentence) + ".ogg");
+      _logger.Debug($"voicelinePath::{voicelinePath}");
 
       if (!File.Exists(voicelinePath)) return (null, null);
       return ((string?)voicelinePath, (string?)voice);
     });
   }
 
-  private string Sha256(params string[] inputs)
+  private string Md5(params string[] inputs)
   {
     string combinedInput = string.Join(":", inputs);
     byte[] inputBytes = Encoding.UTF8.GetBytes(combinedInput);
-    using (SHA256 sha256 = SHA256.Create())
-    {
-      byte[] hashBytes = sha256.ComputeHash(inputBytes);
-      StringBuilder sb = new StringBuilder();
-      foreach (byte b in hashBytes)
-        sb.Append(b.ToString("x2"));
-      return sb.ToString();
-    }
+    byte[] hashBytes = MD5.HashData(inputBytes);
+    StringBuilder sb = new();
+    foreach (byte b in hashBytes)
+      sb.Append(b.ToString("x2"));
+    return sb.ToString();
   }
 
   // Sanitizes the speaker and sentence. This should preferably NEVER be changed,
@@ -127,8 +85,8 @@ public partial class MessageDispatcher
         speaker = speaker.Replace("!", "").Replace("?", "");
 
       // Remove suffixes from speaker
-      var suffixes = new string[] { "'s Voice", "'s Avatar" };
-      foreach (var suffix in suffixes)
+      string[] suffixes = ["'s Voice", "'s Avatar"];
+      foreach (string suffix in suffixes)
       {
         if (speaker.EndsWith(suffix))
         {
@@ -154,7 +112,7 @@ public partial class MessageDispatcher
         .Replace("–", "-")
         .Replace("\n", " ");
 
-      string? fullLocalName = await Framework.RunOnFrameworkThread(() => ClientState.LocalPlayer?.Name.TextValue ?? null);
+      string? fullLocalName = await _framework.RunOnFrameworkThread(() => _clientState.LocalPlayer?.Name.TextValue ?? null);
       if (fullLocalName != null)
       {
         string[] fullname = fullLocalName.Split(" ");
@@ -301,155 +259,6 @@ public partial class MessageDispatcher
     }
 
     return (speaker, sentence);
-  }
-
-  private Dictionary<int, string> bodyMap = new Dictionary<int, string>()
-  {
-    {0, "Beastman"},
-    {1, "Adult"},
-    {3, "Elderly"},
-    {4, "Child"},
-  };
-
-  private Dictionary<int, string> raceMap = new Dictionary<int, string>()
-  {
-    {1, "Hyur"},
-    {2, "Elezen"},
-    {3, "Lalafell"},
-    {4, "Miqo'te"},
-    {5, "Roegadyn"},
-    {6, "Au Ra"},
-    {7, "Hrothgar"},
-    {8, "Viera"},
-  };
-
-  private Dictionary<int, string> tribeMap = new Dictionary<int, string>()
-  {
-    {1, "Midlander"},
-    {2, "Highlander"},
-    {3, "Wildwood"},
-    {4, "Duskwight"},
-    {5, "Plainsfolk"},
-    {6, "Dunesfolk"},
-    {7, "Seeker of the Sun"},
-    {8, "Keeper of the Moon"},
-    {9, "Sea Wolf"},
-    {10, "Hellsguard"},
-    {11, "Raen"},
-    {12, "Xaela"},
-    {13, "Helions"},
-    {14, "The Lost"},
-    {15, "Rava"},
-    {16, "Veena"},
-  };
-
-  private Dictionary<int, string> eyesMap = new Dictionary<int, string>()
-  {
-    {0, "Option 1"},
-    {1, "Option 2"},
-    {2, "Option 3"},
-    {3, "Option 4"},
-    {4, "Option 5"},
-    {5, "Option 6"},
-    {128, "Option 1"},
-    {129, "Option 2"},
-    {130, "Option 3"},
-    {131, "Option 4"},
-    {132, "Option 5"},
-    {133, "Option 6"},
-  };
-
-  private Dictionary<(int, ushort), string> skeletonRegionMap = new Dictionary<(int, ushort), string>()
-  {
-    {(21,0), "Golem"},
-    {(21,478), "Golem"},
-    {(60,0), "Dragon_Medium"}, // Medium size --> Sooh Non
-    {(60,398), "Dragon_Medium"},
-    {(63,0), "Dragon_Large"}, // Large size --> Ess Khas
-    {(63,398), "Dragon_Large"},
-    {(239,0), "Dragon_Small"}, // Small size --> Khash Thah
-    {(239,398), "Dragon_Small"},
-
-    {(278,0), "Node"},
-    {(278,402), "Node"},
-
-    {(405, 0), "Namazu"},
-    {(494, 0), "Namazu"},
-    {(494, 614), "Namazu"},
-    {(494, 622), "Namazu"},
-
-    {(706,0), "Ea"},
-    {(706,960), "Ea"},
-
-    {(11001, 0), "Amalj'aa"},
-    {(11001, 146), "Amalj'aa"},
-    {(11001, 401), "Vanu Vanu"},
-
-    {(11002,0), "Ixal"},
-    {(11002,154), "Ixal"},
-
-    {(11003,0), "Kobold"},
-    {(11003,180), "Kobold"},
-
-    {(11004,0), "Goblin"},
-    {(11004,478), "Goblin"},
-
-    {(11005,0), "Sylph"},
-    {(11005,152), "Sylph"},
-
-    {(11006,0), "Moogle"},
-    {(11006,400), "Moogle"},
-
-    {(11007,0), "Sahagin"},
-    {(11007,138), "Sahagin"},
-
-    {(11008,0), "Mamool Ja"},
-    {(11008,129), "Mamool Ja"},
-
-    {(11009,0), "Matanga"},     // TODO: Find Areas for Them
-    {(11009,1), "Giant"},       // TODO: Make a Giant Voice
-
-    {(11012,0), "Qiqirn"},
-    {(11013,0), "Qiqirn"},
-    {(11013,139), "Qiqirn"},
-
-    {(11016,0), "Skeleton"},    // TODO: Make a Dead Voice
-
-    {(11020,0), "Vath"},
-    {(11020,398), "Vath"},
-
-    {(11028,0), "Kojin"},
-    {(11028,613), "Kojin"},
-
-    {(11029,0), "Ananta"},
-
-    {(11030,0), "Lupin"},
-
-    {(11037,0), "Nu Mou"},
-    {(11037,816), "Nu Mou"},
-
-    {(11038,0), "Pixie"},
-    {(11038,816), "Pixie"},
-
-    {(11051,0), "Omicron"},
-    {(11051,960), "Omicron"},
-
-    {(11052,0), "Loporrit"},
-    {(11052,959), "Loporrit"}
-  };
-
-  public string GetGender(bool id) => id ? "Female" : "Male";
-  public string GetBody(int id) => bodyMap.TryGetValue(id, out var name) ? name : "Adult";
-  public string GetRace(int id) => raceMap.TryGetValue(id, out var name) ? name : "Unknown:" + id.ToString();
-  public string GetTribe(int id) => tribeMap.TryGetValue(id, out var name) ? name : "Unknown:" + id.ToString();
-  public string GetEyes(int id) => eyesMap.TryGetValue(id, out var name) ? name : "Unknown:" + id.ToString();
-  public string GetSkeleton(int id, ushort region)
-  {
-    if (skeletonRegionMap.TryGetValue((id, region), out var name))
-      return name;
-    else if (skeletonRegionMap.TryGetValue((id, 0), out var defaultName))
-      return defaultName;
-    return "Unknown combination: ID " + id.ToString() + ", Region " + region.ToString();
   }
 
   /*
@@ -1014,20 +823,20 @@ public partial class MessageDispatcher
       int hashValue = speaker.GetHashCode();
       int result = Math.Abs(hashValue) % 10 + 1;
 
-      switch (result)
+      return result switch
       {
-        case 1: return "Hrothgar_Helion_03";
-        case 2: return "Hrothgar_Helion_04";
-        case 3: return "Hrothgar_The_Lost_02";
-        case 4: return "Hrothgar_The_Lost_03";
-        case 5: return "Lalafell_Dunesfolk_Male_06";
-        case 6: return "Roegadyn_Hellsguard_Male_04";
-        case 7: return "Others_Widargelt";
-        case 8: return "Hyur_Highlander_Male_04";
-        case 9: return "Hrothgar_Helion_02";
-        case 10: return "Hyur_Highlander_Male_05";
-      }
-      return "Lupin";
+        1 => "Hrothgar_Helion_03",
+        2 => "Hrothgar_Helion_04",
+        3 => "Hrothgar_The_Lost_02",
+        4 => "Hrothgar_The_Lost_03",
+        5 => "Lalafell_Dunesfolk_Male_06",
+        6 => "Roegadyn_Hellsguard_Male_04",
+        7 => "Others_Widargelt",
+        8 => "Hyur_Highlander_Male_04",
+        9 => "Hrothgar_Helion_02",
+        10 => "Hyur_Highlander_Male_05",
+        _ => "Lupin",
+      };
     }
 
     // Shb Beast Tribes
@@ -1056,23 +865,12 @@ public partial class MessageDispatcher
     if (npcData.Race.StartsWith("Boss"))
       return npcData.Race;
 
-    Logger.Debug("Cannot find a voice for " + speaker);
+    _logger.Debug("Cannot find a voice for " + speaker);
     return "Unknown";
   }
 
-  private readonly Dictionary<char, int> RomanNumberDictionary = new Dictionary<char, int>
-    {
-      { 'I', 1 },
-      { 'V', 5 },
-      { 'X', 10 },
-      { 'L', 50 },
-      { 'C', 100 },
-      { 'D', 500 },
-      { 'M', 1000 },
-    };
-
-  private readonly Dictionary<int, string> NumberRomanDictionary = new Dictionary<int, string>
-    {
+  private readonly Dictionary<int, string> _numberRomanDictionary = new()
+  {
       { 1000, "M" },
       { 900, "CM" },
       { 500, "D" },
@@ -1090,8 +888,8 @@ public partial class MessageDispatcher
 
   private string RomanTo(int number)
   {
-    var roman = new StringBuilder();
-    foreach (var item in NumberRomanDictionary)
+    StringBuilder roman = new();
+    foreach (KeyValuePair<int, string> item in _numberRomanDictionary)
     {
       while (number >= item.Key)
       {
@@ -1100,35 +898,6 @@ public partial class MessageDispatcher
       }
     }
     return roman.ToString();
-  }
-
-  private int RomanFrom(string roman)
-  {
-    int total = 0;
-
-    int current, previous = 0;
-    char currentRoman, previousRoman = '\0';
-
-    for (int i = 0; i < roman.Length; i++)
-    {
-      currentRoman = roman[i];
-
-      previous = previousRoman != '\0' ? RomanNumberDictionary[previousRoman] : '\0';
-      current = RomanNumberDictionary[currentRoman];
-
-      if (previous != 0 && current > previous)
-      {
-        total = total - (2 * previous) + current;
-      }
-      else
-      {
-        total += current;
-      }
-
-      previousRoman = currentRoman;
-    }
-
-    return total;
   }
 
   private string ConvertRomanNumerals(string text)

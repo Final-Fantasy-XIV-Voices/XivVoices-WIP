@@ -4,7 +4,7 @@ public partial class AudioPostProcessor
 {
   private string GetFFmpegFilterArguments(XivMessage message, bool isLocalTTS)
   {
-    int speed = isLocalTTS ? Configuration.LocalTTSSpeed : Configuration.Speed;
+    int speed = isLocalTTS ? _configuration.LocalTTSSpeed : _configuration.Speed;
 
     bool changeSpeed = speed != 100;
     string additionalChanges = "";

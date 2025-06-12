@@ -2,8 +2,10 @@ using System.Runtime.CompilerServices;
 
 namespace XivVoices.Services;
 
-public partial class LipSync {
-  public enum CharacterMode : byte {
+public partial class LipSync
+{
+  public enum CharacterMode : byte
+  {
     None = 0,
     EmoteLoop = 3,
   }
@@ -21,32 +23,29 @@ public partial class LipSync {
     [FieldOffset(0x2D8)] public ushort LipsOverride;
   }
 
-  private unsafe void TrySetLipsOverride(ICharacter? character, ushort newLipsOverride)
+  private unsafe void TrySetLipsOverride(IntPtr character, ushort newLipsOverride)
   {
-    if (!IsCharacterValid(character)) return;
-    ActorMemory* actorMemory = (ActorMemory*)character!.Address;
+    if (character == IntPtr.Zero) return;
+    ActorMemory* actorMemory = (ActorMemory*)character;
     if (actorMemory == null) return;
     AnimationMemory* animationMemory = (AnimationMemory*)Unsafe.AsPointer(ref actorMemory->Animation);
     if (animationMemory == null) return;
     animationMemory->LipsOverride = newLipsOverride;
   }
 
-  private unsafe CharacterMode TryGetCharacterMode(ICharacter? character)
+  private unsafe CharacterMode TryGetCharacterMode(IntPtr character)
   {
-    if (!IsCharacterValid(character)) return CharacterMode.None;
-    ActorMemory* actorMemory = (ActorMemory*)character!.Address;
+    if (character == IntPtr.Zero) return CharacterMode.None;
+    ActorMemory* actorMemory = (ActorMemory*)character;
     if (actorMemory == null) return CharacterMode.None;
     return (CharacterMode)actorMemory->CharacterMode;
   }
 
-  private unsafe void TrySetCharacterMode(ICharacter? character, CharacterMode characterMode)
+  private unsafe void TrySetCharacterMode(IntPtr character, CharacterMode characterMode)
   {
-    if (!IsCharacterValid(character)) return;
-    ActorMemory* actorMemory = (ActorMemory*)character!.Address;
+    if (character == IntPtr.Zero) return;
+    ActorMemory* actorMemory = (ActorMemory*)character;
     if (actorMemory == null) return;
     actorMemory->CharacterMode = (byte)characterMode;
   }
-
-  private bool IsCharacterValid(ICharacter? character) =>
-    character != null && character.Address != IntPtr.Zero;
 }

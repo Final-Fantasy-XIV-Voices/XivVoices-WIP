@@ -1,14 +1,17 @@
+using System.Windows.Forms;
+
 namespace XivVoices.Services;
 
 public partial class LocalTTSService
 {
-  private async Task<string> ProcessPlayerChat(string sentence, string speaker)
+  // TODO: this adds "player says" to emote messages. mayb just check if message starts with name and then dont add it instead of this emoticons dictionary.
+  private async Task<string> ProcessPlayerChat(XivMessage message)
   {
-    sentence = sentence.Trim();
-    string playerName = speaker.Split(" ")[0];
-    bool iAmSpeaking = await Framework.RunOnFrameworkThread(() => ClientState.LocalPlayer?.Name.TextValue == speaker);
-    var options = RegexOptions.IgnoreCase;
-    var emoticons = new Dictionary<string, string>
+    string sentence = message.Sentence.Trim();
+    string playerName = message.OriginalSpeaker.Split(" ")[0];
+    bool iAmSpeaking = await _framework.RunOnFrameworkThread(() => _clientState.LocalPlayer?.Name.TextValue == message.OriginalSpeaker);
+    RegexOptions options = RegexOptions.IgnoreCase;
+    Dictionary<string, string> emoticons = new()
     {
       { @"(^|\s)o/($|\s)", "waves and says " },
       { @"(^|\s)\\o($|\s)", "waves and says " },
@@ -26,8 +29,8 @@ public partial class LocalTTSService
     if (iAmSpeaking)
     {
       playerName = "You";
-      var keys = new List<string>(emoticons.Keys);
-      foreach (var key in keys)
+      List<string> keys = [.. emoticons.Keys];
+      foreach (string key in keys)
         emoticons[key] = Regex.Replace(emoticons[key], "s ", " ");
     }
 
@@ -40,15 +43,15 @@ public partial class LocalTTSService
     // Check if the player is waving
     if (sentence.Equals("o/"))
     {
-      if(iAmSpeaking)
-          return playerName + " wave.";
+      if (iAmSpeaking)
+        return playerName + " wave.";
       else
-          return playerName + " is waving.";
+        return playerName + " is waving.";
     }
 
     // Check other emotions
     bool saysAdded = false;
-    foreach (var emoticon in emoticons)
+    foreach (KeyValuePair<string, string> emoticon in emoticons)
     {
       if (Regex.IsMatch(sentence, emoticon.Key, options))
       {
@@ -59,7 +62,7 @@ public partial class LocalTTSService
       }
     }
 
-    if (!saysAdded && Configuration.LocalTTSPlayerSays)
+    if (!saysAdded && _configuration.LocalTTSPlayerSays)
     {
       string says = iAmSpeaking ? " say " : " says ";
       sentence = playerName + says + sentence;
@@ -146,13 +149,13 @@ public partial class LocalTTSService
 
   private string JobReplacement(string sentence)
   {
-    var jobReplacementsCaseSensitive = new Dictionary<string, string>
+    Dictionary<string, string> jobReplacementsCaseSensitive = new()
     {
       { "WAR", "Warrior" },
       { "SAM", "Samurai" }
     };
 
-    var jobReplacementsCaseInsensitive = new Dictionary<string, string>
+    Dictionary<string, string> jobReplacementsCaseInsensitive = new()
     {
       { "CRP", "Carpenter" },
       { "BSM", "Blacksmith" },
@@ -196,11 +199,11 @@ public partial class LocalTTSService
     };
 
     // Apply case-insensitive replacements for most job abbreviations
-    foreach (var job in jobReplacementsCaseInsensitive)
+    foreach (KeyValuePair<string, string> job in jobReplacementsCaseInsensitive)
       sentence = Regex.Replace(sentence, $@"\b{job.Key}\b", job.Value, RegexOptions.IgnoreCase);
 
     // Apply case-sensitive replacements for "WAR," "ARC," and "SAM"
-    foreach (var job in jobReplacementsCaseSensitive)
+    foreach (KeyValuePair<string, string> job in jobReplacementsCaseSensitive)
       sentence = Regex.Replace(sentence, $@"\b{job.Key}\b", job.Value);
 
     return sentence;
@@ -208,10 +211,10 @@ public partial class LocalTTSService
 
   private string ApplyLexicon(string sentence)
   {
-    if (DataService.Manifest == null) return sentence;
+    if (_dataService.Manifest == null) return sentence;
 
     string cleanedSentence = sentence;
-    foreach (KeyValuePair<string, string> entry in DataService.Manifest.Lexicon)
+    foreach (KeyValuePair<string, string> entry in _dataService.Manifest.Lexicon)
     {
       string pattern = "\\b" + entry.Key + "\\b";
       cleanedSentence = Regex.Replace(cleanedSentence, pattern, entry.Value, RegexOptions.IgnoreCase);

@@ -2,72 +2,67 @@ using Dalamud.Game.Command;
 
 namespace XivVoices.Services;
 
-public class CommandService : IHostedService
+public interface ICommandService : IHostedService;
+
+public class CommandService(ILogger _logger, Configuration _configuration, ICommandManager _commandManager, ConfigWindow _configWindow, IPlaybackService _playbackService) : ICommandService
 {
-  private string XivVoicesCommand = "/xivvoices";
-  private string XivVoicesCommandAlias = "/xivv";
-
-  private readonly Logger Logger;
-  private readonly Configuration Configuration;
-  private readonly ICommandManager CommandManager;
-  private readonly ConfigWindow ConfigWindow;
-  private readonly SetupWindow SetupWindow;
-
-  public CommandService(Logger logger, Configuration configuration, ICommandManager commandManager, ConfigWindow configWindow, SetupWindow setupWindow)
-  {
-    Logger = logger;
-    Configuration = configuration;
-    CommandManager = commandManager;
-    ConfigWindow = configWindow;
-    SetupWindow = setupWindow;
-  }
+  private const string XivVoicesCommand = "/xivvoices";
+  private const string XivVoicesCommandAlias = "/xivv";
 
   public Task StartAsync(CancellationToken cancellationToken)
   {
-    CommandManager.AddHandler(XivVoicesCommand, new CommandInfo(OnCommand)
+    _commandManager.AddHandler(XivVoicesCommand, new CommandInfo(OnCommand)
     {
       HelpMessage = $"See '{XivVoicesCommand} help' for more."
     });
-    CommandManager.AddHandler(XivVoicesCommandAlias, new CommandInfo(OnCommand)
+    _commandManager.AddHandler(XivVoicesCommandAlias, new CommandInfo(OnCommand)
     {
       HelpMessage = $"Alias for {XivVoicesCommand}."
     });
 
-    Logger.Debug("CommandService started");
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
   public Task StopAsync(CancellationToken cancellationToken)
   {
-    CommandManager.RemoveHandler(XivVoicesCommand);
-    CommandManager.RemoveHandler(XivVoicesCommandAlias);
+    _commandManager.RemoveHandler(XivVoicesCommand);
+    _commandManager.RemoveHandler(XivVoicesCommandAlias);
 
-    Logger.Debug("CommandService stopped");
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
   private void OnCommand(string command, string arguments)
   {
-    Logger.Debug($"command::'{command}' arguments::'{arguments}'");
+    _logger.Debug($"command::'{command}' arguments::'{arguments}'");
 
     string[] args = arguments.Split(" ", StringSplitOptions.RemoveEmptyEntries);
     if (args.Length == 0)
     {
-      if (Configuration.IsSetupComplete) ConfigWindow.Toggle();
-      else SetupWindow.Toggle();
+      _configWindow.Toggle();
       return;
     }
 
+    // TODO: add commands to open each config window tab (only show /xivv wine if Util.IsWine())
     switch (args[0])
     {
       case "help":
-        Logger.Chat("Available commands:");
-        Logger.Chat($"  {command} help");
-        Logger.Chat($"  {command}");
+        _logger.Chat("Available commands:");
+        _logger.Chat($"  {command} help - Display this help menu");
+        _logger.Chat($"  {command} mute - Toggle the muted state");
+        _logger.Chat($"  {command}");
+        break;
+      case "mute":
+        bool mute = !_configuration.Muted;
+        _configuration.Muted = mute;
+        _configuration.Save();
+        if (mute) _playbackService.StopAll();
+        _logger.Chat(mute ? "Muted" : "Unmuted");
         break;
       default:
-        Logger.Chat("Invalid command:");
-        Logger.Chat($"  {command} {arguments}");
+        _logger.Chat("Invalid command:");
+        _logger.Chat($"  {command} {arguments}");
         goto case "help";
     }
   }

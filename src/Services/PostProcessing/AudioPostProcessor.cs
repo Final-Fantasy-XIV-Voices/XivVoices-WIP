@@ -4,24 +4,26 @@ using NAudio.Wave;
 
 namespace XivVoices.Services;
 
-public partial class AudioPostProcessor : IHostedService
+public interface IAudioPostProcessor : IHostedService
 {
-  private readonly Logger Logger;
-  private readonly Configuration Configuration;
-  private readonly IDalamudPluginInterface PluginInterface;
+  Task<WaveStream?> PostProcessToPCM(string voicelinePath, bool isLocalTTS, XivMessage message);
+  Task FFmpegStart();
+  Task FFmpegStop();
+  Task RefreshFFmpegWineProcessState();
+  bool IsMac();
+  bool FFmpegWineProcessRunning { get; }
+  string FFmpegWineScriptPath { get; }
+  int FFmpegWineProcessPort { get; }
+  bool FFmpegWineDirty { get; }
+}
 
-  public AudioPostProcessor(Logger logger, Configuration configuration, IDalamudPluginInterface pluginInterface)
-  {
-    Logger = logger;
-    Configuration = configuration;
-    PluginInterface = pluginInterface;
-  }
-
+public partial class AudioPostProcessor(ILogger _logger, Configuration _configuration, IDataService _dataService, IDalamudPluginInterface _pluginInterface) : IAudioPostProcessor
+{
   public Task StartAsync(CancellationToken cancellationToken)
   {
     _ = FFmpegStart();
 
-    Logger.Debug("AudioPostProcessor started");
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
@@ -29,27 +31,37 @@ public partial class AudioPostProcessor : IHostedService
   {
     _ = FFmpegStop();
 
-    Logger.Debug("AudioPostProcessor stopped");
+    _logger.ServiceLifecycle();
     return Task.CompletedTask;
   }
 
   public async Task<WaveStream?> PostProcessToPCM(string voicelinePath, bool isLocalTTS, XivMessage message)
   {
     string filterArguments = GetFFmpegFilterArguments(message, isLocalTTS);
-    Logger.Debug($"FFmpeg filter arguments: {filterArguments}");
+    _logger.Debug($"FFmpeg filter arguments: {filterArguments}");
 
-    // LocalTTS needs to be resampled so this .wav support here is kinda unecessary, but I'll keep it just in case.
-    if (String.IsNullOrEmpty(filterArguments) && !isLocalTTS)
+    if (string.IsNullOrEmpty(filterArguments))
       return voicelinePath.EndsWith(".ogg") ? DecodeOggOpusToPCM(voicelinePath) : DecodeWavIeeeToPCM(voicelinePath);
 
-    var tempFilePath = Path.Join(Configuration.DataDirectory, $"ffmpeg-{Guid.NewGuid()}.ogg");
+    string? tempFilePath = _dataService.TempFilePath($"ffmpeg-{Guid.NewGuid()}.ogg");
+    if (tempFilePath == null) return null;
 
-    string filterComplexFlag = String.IsNullOrEmpty(filterArguments) ? "" : $"-filter_complex \"{filterArguments}\"";
+    string filterComplexFlag = string.IsNullOrEmpty(filterArguments) ? "" : $"-filter_complex \"{filterArguments}\"";
     string ffmpegArguments = $"-i \"{voicelinePath}\" {filterComplexFlag} -ar 48000 -c:a libopus \"{tempFilePath}\"";
 
     await ExecuteFFmpegCommand(ffmpegArguments);
-    WaveStream waveStream = DecodeOggOpusToPCM(tempFilePath);
+    if (!File.Exists(tempFilePath))
+    {
+      _logger.Debug("FFmpeg did not create a file? retrying once.");
+      await ExecuteFFmpegCommand(ffmpegArguments);
+      if (!File.Exists(tempFilePath))
+      {
+        _logger.Error("FFmpeg did not create a file.");
+        return null;
+      }
+    }
 
+    WaveStream waveStream = DecodeOggOpusToPCM(tempFilePath);
     File.Delete(tempFilePath);
 
     return waveStream;
@@ -57,44 +69,42 @@ public partial class AudioPostProcessor : IHostedService
 
   public static WaveStream DecodeOggOpusToPCM(string filePath)
   {
-    using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+    using FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+    IOpusDecoder decoder = OpusCodecFactory.CreateDecoder(48000, 1);
+    OpusOggReadStream oggStream = new OpusOggReadStream(decoder, fileStream);
+
+    List<float> pcmSamples = [];
+
+    while (oggStream.HasNextPacket)
     {
-      IOpusDecoder decoder = OpusCodecFactory.CreateDecoder(48000, 1);
-      OpusOggReadStream oggStream = new OpusOggReadStream(decoder, fileStream);
-
-      List<float> pcmSamples = new List<float>();
-
-      while (oggStream.HasNextPacket)
+      short[] packet = oggStream.DecodeNextPacket();
+      if (packet != null)
       {
-        short[] packet = oggStream.DecodeNextPacket();
-        if (packet != null)
+        foreach (short sample in packet)
         {
-          foreach (var sample in packet)
-          {
-            pcmSamples.Add(sample / 32768f);
-          }
+          pcmSamples.Add(sample / 32768f);
         }
       }
-
-      var waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 1);
-      var stream = new MemoryStream();
-      using (var writer = new BinaryWriter(stream, System.Text.Encoding.Default, leaveOpen: true))
-      {
-        foreach (var sample in pcmSamples)
-        {
-          writer.Write(sample);
-        }
-      }
-      stream.Position = 0;
-      return new RawSourceWaveStream(stream, waveFormat);
     }
+
+    WaveFormat waveFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 1);
+    MemoryStream stream = new();
+    using (BinaryWriter writer = new(stream, Encoding.Default, leaveOpen: true))
+    {
+      foreach (float sample in pcmSamples)
+      {
+        writer.Write(sample);
+      }
+    }
+    stream.Position = 0;
+    return new RawSourceWaveStream(stream, waveFormat);
   }
 
   public static WaveStream DecodeWavIeeeToPCM(string filePath)
   {
     byte[] wavBytes = File.ReadAllBytes(filePath);
-    var memoryStream = new MemoryStream(wavBytes);
-    var reader = new WaveFileReader(memoryStream);
+    MemoryStream memoryStream = new(wavBytes);
+    WaveFileReader reader = new(memoryStream);
 
     if (reader.WaveFormat.Encoding != WaveFormatEncoding.IeeeFloat)
       throw new InvalidOperationException("Expected IEEE float WAV format.");

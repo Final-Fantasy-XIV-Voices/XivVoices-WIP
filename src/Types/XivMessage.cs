@@ -1,31 +1,31 @@
 namespace XivVoices.Types;
 
-public class XivMessage
-{
-  // Sha256(speaker, sentence)
-  public string Id { get; }
-  public MessageSource Source { get; }
-  public string Voice { get; }
-  public string Speaker { get; }
-  public string Sentence { get; }
-  public NpcData? NpcData { get; } = null;
-  public string? VoicelinePath { get; } = null;
+using System.Text.Json.Serialization;
 
-  public XivMessage(string id, MessageSource source, string voice, string speaker, string sentence, NpcData? npcData, string? voicelinePath)
-  {
-    Id = id;
-    Voice = voice;
-    Source = source;
-    Speaker = speaker;
-    Sentence = sentence;
-    NpcData = npcData;
-    VoicelinePath = voicelinePath;
-  }
+public class XivMessage(string id, MessageSource source, string voice, string speaker, string sentence, string originalSpeaker, string originalSentence, NpcData? npcData, string? voicelinePath)
+{
+  [JsonIgnore]
+  public string Id { get; } = id;
+  // Used as a unique key for LipSync and PlaybackService.Playing
+
+  public MessageSource Source { get; } = source;
+  public string Voice { get; } = voice;
+  public string Speaker { get; } = speaker;
+  public string Sentence { get; } = sentence;
+  public string OriginalSpeaker { get; } = originalSpeaker;
+  public string OriginalSentence { get; } = originalSentence;
+  public NpcData? NpcData { get; } = npcData;
+  public string? VoicelinePath { get; } = voicelinePath;
+
+  public override string ToString() =>
+    $"{{ Voice:'{Voice}' Source:'{Source}' Speaker:'{Speaker}' Sentence:'{Sentence}' OriginalSpeaker:'{OriginalSpeaker}' OriginalSentence:'{OriginalSentence}' NpcData:'{NpcData}' VoicelinePath:'{VoicelinePath}' }}";
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum MessageSource
 {
   AddonTalk,
+  AddonMiniTalk,
   AddonBattleTalk,
   ChatMessage,
 }
